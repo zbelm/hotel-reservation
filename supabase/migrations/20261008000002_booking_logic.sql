@@ -315,7 +315,7 @@ begin
   end if;
 
   loop
-    v_code := 'HR' || upper(substr(encode(gen_random_bytes(5), 'hex'), 1, 8));
+    v_code := 'HR' || upper(substr(md5(gen_random_uuid()::text), 1, 8));
     exit when not exists (select 1 from public.bookings where code = v_code);
   end loop;
 

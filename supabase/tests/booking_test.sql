@@ -73,10 +73,21 @@ do $$ declare b json; plan uuid; begin
   exception when others then
     assert sqlerrm like 'Sorry, this room type is sold out%', sqlerrm;
   end;
+  raise notice 'PASS 4 holds block rooms; last room cannot be double booked';
+end $$;
+reset role;
+do $$ begin
   -- night before and after the overlap are still free (1 suite each)
   assert public.room_type_availability('00000000-0000-0000-0000-0000000000a3', current_date + 30, current_date + 31) = 1;
   assert public.room_type_availability('00000000-0000-0000-0000-0000000000a3', current_date + 32, current_date + 33) = 1;
-  raise notice 'PASS 4 holds block rooms; last room cannot be double booked';
+end $$;
+set role authenticated;
+do $$ begin
+  begin
+    perform public.room_type_availability('00000000-0000-0000-0000-0000000000a3', current_date + 30, current_date + 31);
+    raise exception 'x';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS 4b internal helpers are not callable from the API';
 end $$;
 
 -- 5. Validation errors

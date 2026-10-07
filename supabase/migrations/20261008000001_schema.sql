@@ -1,7 +1,7 @@
 -- Hotel Reservation System: core schema
 -- Runs on Supabase (PostgreSQL). Money is stored in pesos (numeric(12,2)).
 
-create extension if not exists pgcrypto;
+-- gen_random_uuid() is built into PostgreSQL 13+, no extension needed.
 
 -- ---------------------------------------------------------------------------
 -- Properties (one row per hotel)
@@ -180,7 +180,7 @@ create table public.audit_logs (
 
 -- Keep updated_at current
 create or replace function public.touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 begin
   new.updated_at := now();
   return new;

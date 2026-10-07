@@ -28,7 +28,8 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    2. `supabase/migrations/20261008000002_booking_logic.sql`
    3. `supabase/migrations/20261008000003_security.sql`
    4. `supabase/migrations/20261008000004_cron.sql`
-   5. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   5. `supabase/migrations/20261008000005_lock_internal_functions.sql`
+   6. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. **Authentication → Email templates → Magic Link**: add `{{ .Token }}` to the email body so guests get a 6-digit code (the link in the email also works).
@@ -71,7 +72,7 @@ Other roles: `front_desk`, `housekeeping`, `admin`. A **Staff** link appears in 
 
 1. Push this repo to GitHub, then **Add New → Project** on [vercel.com](https://vercel.com) and import it.
 2. Set **Root Directory** to `web`.
-3. Add environment variables (from Supabase → Project Settings → API):
+3. Environment variables: `web/.env.production` already holds this project's public Supabase URL and publishable key, so the build works as is. To point at a different Supabase project, edit that file or set these in Vercel (they override it):
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - Optional: `NEXT_PUBLIC_HOTEL_NAME`, `NEXT_PUBLIC_HOTEL_ADDRESS`, `NEXT_PUBLIC_HOTEL_PHONE`
