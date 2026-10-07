@@ -1,0 +1,12 @@
+{
+  "name": "Sample Bay Hotel",
+  "short_name": "Sample Bay",
+  "description": "Book and manage your stay.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f1e8",
+  "theme_color": "#0e5e5a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

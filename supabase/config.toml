@@ -1,0 +1,8 @@
+project_id = "hotel-reservation"
+
+[functions.create-checkout]
+verify_jwt = true
+
+# PayMongo calls this one directly, so it checks PayMongo's signature instead
+[functions.paymongo-webhook]
+verify_jwt = false
