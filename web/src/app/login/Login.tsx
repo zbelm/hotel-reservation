@@ -6,6 +6,9 @@ import { useAuth } from "@/components/AuthProvider";
 import { Notice } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 
+// Turn on in Vercel with NEXT_PUBLIC_GOOGLE_LOGIN=1 after enabling Google in Supabase Auth → Providers
+const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1";
+
 function safeNext(value: string | null): string {
   return value && value.startsWith("/") && !value.startsWith("//") ? value : "/bookings";
 }
@@ -60,7 +63,7 @@ export function Login() {
   return (
     <div className="card p-7">
       <h1 className="text-3xl font-semibold">Sign in</h1>
-      <p className="mt-2 text-muted">No password needed. We&rsquo;ll email you a 6-digit code.</p>
+      <p className="mt-2 text-muted">No password needed. We&rsquo;ll email you a sign-in link.</p>
 
       {!sent ? (
         <form onSubmit={sendCode} className="mt-6 grid gap-4">
@@ -68,13 +71,13 @@ export function Login() {
             <label htmlFor="email" className="label">Email</label>
             <input id="email" type="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" autoFocus />
           </div>
-          <button className="btn-primary" disabled={busy}>{busy ? "Sending…" : "Email me a code"}</button>
+          <button className="btn-primary" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in link"}</button>
         </form>
       ) : (
         <form onSubmit={verify} className="mt-6 grid gap-4">
-          <Notice>We sent a code to <strong>{email}</strong>. You can also tap the link in that email.</Notice>
+          <Notice>Check <strong>{email}</strong> and tap the sign-in link. Open it on this device to come straight back here. If the email shows a 6-digit code instead, enter it below.</Notice>
           <div>
-            <label htmlFor="code" className="label">6-digit code</label>
+            <label htmlFor="code" className="label">6-digit code (if your email has one)</label>
             <input id="code" inputMode="numeric" autoComplete="one-time-code" className="field text-center font-mono text-2xl tracking-[0.4em]"
               value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} required autoFocus />
           </div>
@@ -87,10 +90,14 @@ export function Login() {
 
       {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
 
-      <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-muted">
-        <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
-      </div>
-      <button className="btn-quiet w-full" onClick={google}>Continue with Google</button>
+      {googleEnabled && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-muted">
+            <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
+          </div>
+          <button className="btn-quiet w-full" onClick={google}>Continue with Google</button>
+        </>
+      )}
     </div>
   );
 }

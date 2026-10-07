@@ -18,11 +18,15 @@ export function SearchResults() {
 
   const stay = new URLSearchParams({ check_in: checkIn, check_out: checkOut, adults: String(adults), children: String(children) });
   const query = stay.toString();
+  // Only ask the database once both dates are real dates (e.g. someone opened /search directly)
+  const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const ready = isDate(checkIn) && isDate(checkOut);
 
   // Results are tagged with the search they answer, so a new search shows the spinner
   const [state, setState] = useState<{ query: string; results?: SearchResult[]; error?: string }>({ query: "" });
 
   useEffect(() => {
+    if (!ready) return;
     let active = true;
     supabase()
       .rpc("search_availability", { p_check_in: checkIn, p_check_out: checkOut, p_adults: adults, p_children: children })
@@ -31,7 +35,7 @@ export function SearchResults() {
         setState(error ? { query, error: error.message } : { query, results: (data as SearchResult[]) ?? [] });
       });
     return () => { active = false; };
-  }, [query, checkIn, checkOut, adults, children]);
+  }, [ready, query, checkIn, checkOut, adults, children]);
 
   const current = state.query === query;
   const results = current ? state.results ?? null : null;
@@ -51,8 +55,9 @@ export function SearchResults() {
       </div>
 
       {!isConfigured && <Notice tone="warn">The app isn&rsquo;t connected to Supabase yet. Add the keys from the README to <code>.env.local</code>.</Notice>}
+      {!ready && <Notice>Choose your check-in and check-out dates above, then tap Search rooms.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
-      {!results && !error && <Spinner label="Finding rooms" />}
+      {ready && !results && !error && <Spinner label="Finding rooms" />}
       {results && results.length === 0 && (
         <Notice>No rooms fit {plural(adults, "adult")} on those dates. Try fewer guests or other dates.</Notice>
       )}
