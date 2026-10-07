@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-final _peso = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 0);
+final _peso = NumberFormat.currency(locale: 'en_US', symbol: '₱', decimalDigits: 0);
 final _iso = DateFormat('yyyy-MM-dd');
 final _nice = DateFormat('EEE, MMM d');
 final _niceYear = DateFormat('EEE, MMM d, y');

@@ -37,7 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await db.auth.signInWithOtp(email: email);
+      await db.auth.signInWithOtp(email: email, emailRedirectTo: authRedirect);
       setState(() => _sent = true);
     } catch (e) {
       setState(() => _error = errorText(e));
@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             Text('Sign in to book\nyour stay', style: displayStyle(context, 36)),
             const SizedBox(height: 12),
-            Text("No password needed. We'll email you a 6-digit code.", style: TextStyle(color: muted, fontSize: 16)),
+            Text("No password needed. We'll email you a sign-in link.", style: TextStyle(color: muted, fontSize: 16)),
             const SizedBox(height: 32),
             if (!_sent) ...[
               TextField(
@@ -85,9 +85,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSubmitted: (_) => _sendCode(),
               ),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _busy ? null : _sendCode, child: Text(_busy ? 'Sending…' : 'Email me a code')),
+              FilledButton(onPressed: _busy ? null : _sendCode, child: Text(_busy ? 'Sending…' : 'Email me a sign-in link')),
             ] else ...[
-              Text('We sent a code to ${_email.text.trim()}.', style: TextStyle(color: muted)),
+              Text(
+                'Open the email we sent to ${_email.text.trim()} on this phone and tap the sign-in link. '
+                'The app opens and signs you in.',
+                style: TextStyle(color: muted, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text('If your email shows a 6-digit code instead, type it here:', style: TextStyle(color: muted)),
               const SizedBox(height: 16),
               TextField(
                 controller: _code,
@@ -96,7 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 autofillHints: const [AutofillHints.oneTimeCode],
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 28, letterSpacing: 12, fontWeight: FontWeight.w600),
-                decoration: const InputDecoration(labelText: '6-digit code', counterText: ''),
+                decoration: const InputDecoration(labelText: '6-digit code (optional)', counterText: ''),
                 onChanged: (v) {
                   if (v.length == 6) _verify();
                 },

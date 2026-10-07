@@ -84,20 +84,22 @@ Run locally: `cd web && cp .env.example .env.local` (fill in the keys), then `np
 
 ### 4. Flutter: the mobile app
 
-Needs [Flutter](https://docs.flutter.dev/get-started/install) 3.35 or newer.
+**Easiest: let GitHub build it.** Every push that changes `mobile/` runs the "Android app" build on GitHub's free runners (`.github/workflows/android.yml`). It checks the code, runs the tests, builds the app and publishes **SampleBayHotel.apk** on the repo's **Releases** page under "android-latest". Open that page on an Android phone, download the file, and allow installing from this source when asked.
+
+The first build also creates the `mobile/android/` folder and saves it to the repo, so pull afterwards.
+
+**On your own computer** (needs [Flutter](https://docs.flutter.dev/get-started/install) 3.35 or newer and Android Studio):
 
 ```bash
+git pull                       # gets mobile/android/ from the first GitHub build
 cd mobile
-flutter create --platforms=android,ios .   # adds the android/ and ios/ folders
 flutter pub get
-flutter run --dart-define=SUPABASE_URL=https://xxxx.supabase.co --dart-define=SUPABASE_ANON_KEY=eyJ...
+flutter run                    # with a phone plugged in (USB debugging on) or an emulator running
 ```
 
-For Android release builds, add this line inside `<manifest>` in `android/app/src/main/AndroidManifest.xml`:
+The app already points at this project's Supabase. To use another project, add `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`.
 
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-```
+**Sign-in:** the app emails a sign-in link. Tapping it on the same phone opens the app and signs in, because `com.samplebayhotel.app://login-callback` is in Supabase's Redirect URLs and the Android project is set up to open it.
 
 Guests pay in their phone's browser; when they switch back to the app, the booking refreshes and shows as confirmed.
 
