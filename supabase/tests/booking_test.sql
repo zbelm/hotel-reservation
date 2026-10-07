@@ -134,6 +134,28 @@ do $$ begin
 end $$;
 reset role;
 
+-- 7b. Arrival time and policy agreement: only the booking's guest can set them
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ begin
+  begin
+    perform public.save_booking_details((select v::uuid from t where k = 'suite1'), '4pm_6pm', true);
+    raise exception 'x';
+  exception when others then assert sqlerrm = 'Booking not found', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ begin
+  perform public.save_booking_details((select v::uuid from t where k = 'suite1'), '4pm_6pm', true);
+  assert (select arrival_time from public.bookings where id = (select v::uuid from t where k = 'suite1')) = '4pm_6pm';
+  assert (select policies_accepted_at from public.bookings where id = (select v::uuid from t where k = 'suite1')) is not null;
+  begin
+    perform public.save_booking_details((select v::uuid from t where k = 'suite1'), 'midnight', false);
+    raise exception 'x';
+  exception when check_violation then null; end;
+  raise notice 'PASS 7b guests save arrival time and policy agreement on their own booking only';
+end $$;
+reset role;
+
 -- 8. An expired hold frees the room; Ben takes it; Ana's late payment is flagged for refund
 update public.bookings set hold_expires_at = now() - interval '1 minute' where id = (select v::uuid from t where k = 'suite2');
 insert into public.payments (booking_id, amount, provider_ref, status)

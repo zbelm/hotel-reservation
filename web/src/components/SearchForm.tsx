@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { addDays } from "@/lib/format";
 import { useToday } from "@/lib/useToday";
+import { FORWARD } from "./Page";
 
 type Props = {
   initial?: { checkIn?: string; checkOut?: string; adults?: number; children?: number };
@@ -30,11 +31,11 @@ export function SearchForm({ initial, compact }: Props) {
     }
     setError("");
     const q = new URLSearchParams({ check_in: checkIn, check_out: checkOut, adults: String(adults), children: String(children) });
-    router.push(`/search?${q}`);
+    router.push(`/search?${q}`, { transitionTypes: FORWARD });
   }
 
   return (
-    <form onSubmit={submit} className={`card grid gap-3 p-4 sm:grid-cols-[1fr_1fr_0.7fr_0.7fr_auto] sm:items-end ${compact ? "" : "shadow-[0_20px_60px_-30px_rgba(14,94,90,0.45)]"}`}>
+    <form onSubmit={submit} className={`card grid gap-3 p-4 sm:grid-cols-[1fr_1fr_0.7fr_0.7fr_auto] sm:items-end ${compact ? "" : "shadow-[var(--shadow)] sm:p-5"}`}>
       <div>
         <label htmlFor="check-in" className="label">Check-in</label>
         <input id="check-in" type="date" className="field" min={today || undefined} value={checkIn} required

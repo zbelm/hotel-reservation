@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { FORWARD } from "@/components/Page";
 import { SearchForm } from "@/components/SearchForm";
-import { Notice, RoomArt, Spinner } from "@/components/ui";
+import { Steps } from "@/components/Steps";
+import { Notice, RoomArt } from "@/components/ui";
 import { isConfigured, supabase } from "@/lib/supabase";
 import { guests, money, niceDate, plural } from "@/lib/format";
 import type { SearchResult } from "@/lib/types";
@@ -22,7 +24,7 @@ export function SearchResults() {
   const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
   const ready = isDate(checkIn) && isDate(checkOut);
 
-  // Results are tagged with the search they answer, so a new search shows the spinner
+  // Results are tagged with the search they answer, so a new search shows the placeholders
   const [state, setState] = useState<{ query: string; results?: SearchResult[]; error?: string }>({ query: "" });
 
   useEffect(() => {
@@ -43,41 +45,43 @@ export function SearchResults() {
 
   return (
     <>
+      <Steps current={ready ? 2 : 1} />
       <SearchForm key={query} compact initial={{ checkIn, checkOut, adults, children }} />
 
-      <div className="mb-6 mt-10 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-3xl font-semibold">Rooms for your stay</h1>
-        {checkIn && checkOut && (
+      <div className="mb-6 mt-12 flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Rooms for your stay</h1>
+        {ready && (
           <p className="text-muted">
-            {niceDate(checkIn)} to {niceDate(checkOut)} · {guests(adults, children)}
+            {niceDate(checkIn)} to {niceDate(checkOut)}, {guests(adults, children)}
           </p>
         )}
       </div>
 
       {!isConfigured && <Notice tone="warn">The app isn&rsquo;t connected to Supabase yet. Add the keys from the README to <code>.env.local</code>.</Notice>}
-      {!ready && <Notice>Choose your check-in and check-out dates above, then tap Search rooms.</Notice>}
+      {!ready && <Notice>Choose your check-in and check-out dates above, then select Search rooms.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
-      {ready && !results && !error && <Spinner label="Finding rooms" />}
+      {ready && !results && !error && <ResultsSkeleton />}
       {results && results.length === 0 && (
-        <Notice>No rooms fit {plural(adults, "adult")} on those dates. Try fewer guests or other dates.</Notice>
+        <Notice>No room fits {guests(adults, children)}. Try fewer guests per room, or call the front desk to book two rooms together.</Notice>
       )}
 
       <div className="grid gap-5">
-        {results?.map((r) => {
+        {results?.map((r, i) => {
           const soldOut = r.available < 1;
+          const href = `/room?id=${r.room_type_id}&${stay}`;
           return (
-            <article key={r.room_type_id} className="card grid overflow-hidden sm:grid-cols-[280px_1fr]">
-              <div className="h-44 sm:h-full"><RoomArt name={r.name} photo={r.photos?.[0]} /></div>
-              <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between">
+            <article key={r.room_type_id} className="arrive lift card grid overflow-hidden sm:grid-cols-[300px_1fr]" style={{ "--i": i } as React.CSSProperties}>
+              <div className="h-48 overflow-hidden sm:h-full"><RoomArt name={r.name} photo={r.photos?.[0]} className="lift-art" /></div>
+              <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
                 <div className="max-w-md">
                   <h2 className="text-2xl font-semibold">{r.name}</h2>
                   <p className="mt-1 text-sm text-muted">
-                    {r.bed_type} bed · {r.size_sqm} m² · up to {plural(r.max_adults, "adult")}
+                    {r.bed_type} bed, {r.size_sqm} m², up to {plural(r.max_adults, "adult")}
                   </p>
                   {r.description && <p className="mt-3 text-[15px] leading-relaxed">{r.description}</p>}
                   <ul className="mt-3 flex flex-wrap gap-1.5">
                     {r.amenities.slice(0, 5).map((a) => (
-                      <li key={a} className="rounded-full bg-sand px-2.5 py-1 text-xs text-muted">{a}</li>
+                      <li key={a} className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">{a}</li>
                     ))}
                   </ul>
                 </div>
@@ -86,11 +90,11 @@ export function SearchResults() {
                     <p className="font-semibold text-bad">Sold out for these dates</p>
                   ) : (
                     <>
-                      <p className="text-sm text-muted">from</p>
+                      <p className="text-sm text-muted">{plural(r.nights, "night")} from</p>
                       <p className="font-display text-3xl font-semibold">{money(r.lowest_total)}</p>
-                      <p className="text-sm text-muted">{plural(r.nights, "night")} · {money(r.lowest_nightly)}/night</p>
+                      <p className="text-sm text-muted">{money(r.lowest_nightly)} a night, taxes included</p>
                       {r.available <= 2 && <p className="mt-1 text-sm font-semibold text-sun">Only {r.available} left</p>}
-                      <Link href={`/room?id=${r.room_type_id}&${stay}`} className="btn-primary mt-3">See rates</Link>
+                      <Link href={href} transitionTypes={FORWARD} className="btn-primary mt-3">Choose a rate</Link>
                     </>
                   )}
                 </div>
@@ -100,5 +104,22 @@ export function SearchResults() {
         })}
       </div>
     </>
+  );
+}
+
+function ResultsSkeleton() {
+  return (
+    <div className="grid gap-5" aria-busy="true" aria-label="Finding rooms">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="card grid overflow-hidden sm:grid-cols-[300px_1fr]">
+          <div className="skeleton h-48 rounded-none sm:h-52" />
+          <div className="space-y-3 p-6">
+            <div className="skeleton h-7 w-48" />
+            <div className="skeleton h-4 w-64" />
+            <div className="skeleton h-4 w-full max-w-md" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

@@ -2,7 +2,7 @@
 
 insert into public.properties (id, name, address, phone, email)
 values ('00000000-0000-0000-0000-000000000001', 'Sample Bay Hotel',
-        '123 Seaside Avenue, Taguig City, Metro Manila', '+63 2 8123 4567', 'stay@samplebayhotel.ph')
+        '123 Seaside Avenue, Pasay City, Metro Manila', '+63 2 8123 4567', 'stay@samplebayhotel.ph')
 on conflict (id) do nothing;
 
 insert into public.room_types
@@ -12,8 +12,8 @@ values
    'Standard Queen', 'A bright, quiet room for one or two guests, with a work desk and rain shower.',
    2, 0, 'Queen', 22, array['Air conditioning', 'Wi-Fi', 'Smart TV', 'Rain shower', 'Work desk'], 2500, 1),
   ('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-000000000001',
-   'Deluxe King', 'More space, a king bed and a city view. Good for longer stays.',
-   2, 1, 'King', 30, array['Air conditioning', 'Wi-Fi', 'Smart TV', 'City view', 'Mini fridge', 'Bathtub'], 3800, 2),
+   'Deluxe King', 'More space, a king bed and a wide view of the bay. Good for longer stays.',
+   2, 1, 'King', 30, array['Air conditioning', 'Wi-Fi', 'Smart TV', 'Bay view', 'Mini fridge', 'Bathtub'], 3800, 2),
   ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-000000000001',
    'Family Suite', 'Two rooms, two beds and a sitting area. Fits a family of five.',
    4, 2, '1 King + 2 Singles', 48, array['Air conditioning', 'Wi-Fi', '2 Smart TVs', 'Sofa', 'Kitchenette', 'Bathtub'], 6500, 3)

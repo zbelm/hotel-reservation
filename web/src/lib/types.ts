@@ -72,6 +72,8 @@ export type Booking = {
   currency: string;
   source: string;
   special_requests: string | null;
+  arrival_time: string | null;
+  policies_accepted_at: string | null;
   created_at: string;
   booking_rooms?: {
     id: string;

@@ -8,6 +8,7 @@ import { BookingBadge, Notice, PageTitle, RoomBadge, Spinner } from "@/component
 import { supabase } from "@/lib/supabase";
 import { addDays, money, niceDate, roomStatusLabel, todayManila } from "@/lib/format";
 import { useToday } from "@/lib/useToday";
+import { arrivalLabel } from "@/lib/hotel";
 import { BOOKING_SELECT, type Booking, type Room, type RoomStatus } from "@/lib/types";
 import { StaffGate } from "./StaffGate";
 
@@ -93,7 +94,7 @@ function Today() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-sm font-medium text-muted">{label}</p>
       <p className="font-display text-4xl font-semibold">{value}</p>
     </div>
   );
@@ -106,8 +107,8 @@ function BookingTable({ title, rows, empty }: { title: string; rows: Booking[]; 
       {rows.length === 0 ? <p className="text-sm text-muted">{empty}</p> : (
         <div className="card overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
-              <tr><th className="px-4 py-3">Guest</th><th className="px-4 py-3">Code</th><th className="px-4 py-3">Room</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Balance</th><th className="px-4 py-3">Status</th></tr>
+            <thead className="border-b border-line text-xs font-medium text-muted">
+              <tr><th className="px-4 py-3">Guest</th><th className="px-4 py-3">Code</th><th className="px-4 py-3">Room</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Arriving</th><th className="px-4 py-3">Balance</th><th className="px-4 py-3">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-line">
               {rows.map((b) => {
@@ -119,6 +120,7 @@ function BookingTable({ title, rows, empty }: { title: string; rows: Booking[]; 
                     <td className="px-4 py-3 font-mono">{b.code}</td>
                     <td className="px-4 py-3">{br?.rooms?.number ? `${br.rooms.number} · ` : ""}{br?.room_types?.name}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{niceDate(b.check_in)} – {niceDate(b.check_out)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-muted">{arrivalLabel(b.arrival_time) ?? "Not given"}</td>
                     <td className={`px-4 py-3 ${balance > 0 ? "font-semibold text-sun" : "text-muted"}`}>{balance > 0 ? money(balance) : "Paid"}</td>
                     <td className="px-4 py-3"><BookingBadge status={b.status} /></td>
                   </tr>
@@ -171,7 +173,7 @@ function RoomBoard() {
       </div>
       {floors.map((f) => (
         <section key={f}>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Floor {f}</h2>
+          <h2 className="mb-3 text-base font-semibold text-muted">Floor {f}</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {rooms.filter((r) => (r.floor ?? 0) === f).map((r) => (
               <div key={r.id} className="card p-4">

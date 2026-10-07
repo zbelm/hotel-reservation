@@ -1,5 +1,6 @@
 "use client";
 
+import { arrivalLabel } from "@/lib/hotel";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -104,6 +105,8 @@ function Detail() {
             <dt className="text-muted">Guests</dt><dd className="text-right">{guests(b.adults, b.children)}</dd>
             <dt className="text-muted">Email</dt><dd className="truncate text-right">{b.guest_email}</dd>
             <dt className="text-muted">Mobile</dt><dd className="text-right">{b.guest_phone ?? "—"}</dd>
+            <dt className="text-muted">Arriving</dt><dd className="text-right">{arrivalLabel(b.arrival_time) ?? "Not given"}</dd>
+            <dt className="text-muted">House rules</dt><dd className="text-right">{b.policies_accepted_at ? "Agreed online" : "Not recorded"}</dd>
           </dl>
           {b.special_requests && <p className="mt-4 rounded-xl bg-sun-tint p-3 text-sm"><strong>Request:</strong> {b.special_requests}</p>}
         </div>

@@ -58,30 +58,64 @@ export function RoomBadge({ status }: { status: RoomStatus }) {
 export function PageTitle({ eyebrow, title, children }: { eyebrow?: string; title: string; children?: ReactNode }) {
   return (
     <div className="mb-8">
-      {eyebrow && <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-sea">{eyebrow}</p>}
+      {eyebrow && <p className="mb-2 text-sm font-semibold text-sea">{eyebrow}</p>}
       <h1 className="text-3xl font-semibold sm:text-4xl">{title}</h1>
       {children && <div className="mt-3 max-w-2xl text-muted">{children}</div>}
     </div>
   );
 }
 
-// Rooms have no photos in the sample data; this draws a calm placeholder.
+// Rooms have no photos in the sample data, so each room type gets an illustration:
+// its bed, facing a capiz window open onto the bay. Real photos (room_types.photos) replace it.
 export function RoomArt({ name, photo, className = "" }: { name: string; photo?: string; className?: string }) {
   if (photo) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={photo} alt={name} className={`h-full w-full object-cover ${className}`} />;
   }
-  const hue = [...name].reduce((h, c) => h + c.charCodeAt(0), 0) % 40;
+  const seed = [...name].reduce((h, c) => h + c.charCodeAt(0), 0);
+  const walls = ["#d9e3dd", "#e6ddd0", "#d6dfe4", "#e3dbd6"];
+  const throws = ["#1b6b73", "#b8572e", "#13303b", "#7b4b2a"];
+  const wall = walls[seed % walls.length];
+  const accent = throws[seed % throws.length];
+  const twoBeds = /suite|family|twin/i.test(name);
   return (
-    <div
-      aria-hidden
-      className={`relative h-full w-full overflow-hidden ${className}`}
-      style={{ background: `linear-gradient(160deg, hsl(${168 + hue} 32% 34%), hsl(${30 + hue} 45% 78%))` }}
-    >
-      <svg viewBox="0 0 400 240" className="absolute inset-0 h-full w-full opacity-35" preserveAspectRatio="none">
-        <path d="M0 170 Q100 140 200 165 T400 155 V240 H0Z" fill="white" />
-        <path d="M0 195 Q120 170 230 192 T400 185 V240 H0Z" fill="white" />
-        <circle cx="315" cy="70" r="26" fill="white" />
+    <div aria-hidden className={`relative h-full w-full overflow-hidden ${className}`} style={{ background: wall }}>
+      <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 h-full w-full">
+        <defs>
+          <linearGradient id={`dusk-${seed}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#7d4e6b" />
+            <stop offset="0.55" stopColor="#e07b55" />
+            <stop offset="1" stopColor="#f0a23b" />
+          </linearGradient>
+        </defs>
+        {/* window onto the bay */}
+        <rect x="118" y="26" width="164" height="118" fill="#7b4b2a" rx="3" />
+        <rect x="126" y="34" width="148" height="102" fill={`url(#dusk-${seed})`} />
+        <circle cx="212" cy="104" r="15" fill="#ffd27a" />
+        <rect x="126" y="104" width="148" height="32" fill="#2c4558" />
+        <rect x="198" y="110" width="28" height="2.5" rx="1" fill="#ffd27a" opacity="0.7" />
+        <rect x="204" y="118" width="16" height="2.5" rx="1" fill="#ffd27a" opacity="0.5" />
+        {/* capiz panes slid to the sides */}
+        {[96, 282].map((x) => (
+          <g key={x}>
+            <rect x={x} y="26" width="22" height="118" fill="#efe9da" stroke="#7b4b2a" strokeWidth="3" />
+            <path d={`M${x} 46h22M${x} 66h22M${x} 86h22M${x} 106h22M${x} 126h22M${x + 11} 26v118`} stroke="#7b4b2a" strokeWidth="1.5" />
+          </g>
+        ))}
+        {/* floor */}
+        <rect x="0" y="196" width="400" height="64" fill="#b98e66" opacity="0.55" />
+        {/* bed(s) */}
+        {(twoBeds ? [{ x: 48, w: 140 }, { x: 212, w: 140 }] : [{ x: 92, w: 216 }]).map((bed) => (
+          <g key={bed.x}>
+            <rect x={bed.x} y="150" width={bed.w} height="16" rx="3" fill="#7b4b2a" />
+            <rect x={bed.x} y="166" width={bed.w} height="52" rx="6" fill="#fafcfa" />
+            <rect x={bed.x + 10} y="158" width={bed.w / 2 - 16} height="18" rx="7" fill="#ffffff" stroke="#d3ddd8" />
+            <rect x={bed.x + bed.w / 2 + 6} y="158" width={bed.w / 2 - 16} height="18" rx="7" fill="#ffffff" stroke="#d3ddd8" />
+            <rect x={bed.x} y="196" width={bed.w} height="22" rx="4" fill={accent} opacity="0.9" />
+            <rect x={bed.x + 4} y="218" width="6" height="14" fill="#7b4b2a" />
+            <rect x={bed.x + bed.w - 10} y="218" width="6" height="14" fill="#7b4b2a" />
+          </g>
+        ))}
       </svg>
     </div>
   );

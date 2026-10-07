@@ -29,7 +29,8 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    3. `supabase/migrations/20261008000003_security.sql`
    4. `supabase/migrations/20261008000004_cron.sql`
    5. `supabase/migrations/20261008000005_lock_internal_functions.sql`
-   6. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   6. `supabase/migrations/20261008000006_booking_details.sql`
+   7. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -45,6 +46,8 @@ where id = (select id from auth.users where email = 'you@example.com');
 ```
 
 Other roles: `front_desk`, `housekeeping`, `admin`. A **Staff** link appears in the website header for staff accounts.
+
+**Your hotel's information:** the website's text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is all in `web/src/lib/hotel.ts`. It ships with sample content for "Sample Bay Hotel": replace it with your real details before taking bookings. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); add photo URLs to `room_types.photos` to replace the illustrations.
 
 ### 2. PayMongo: online payments
 

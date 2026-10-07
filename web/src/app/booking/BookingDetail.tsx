@@ -9,7 +9,8 @@ import { PayNowButton } from "@/components/PayNowButton";
 import { supabase } from "@/lib/supabase";
 import { guests, money, niceDate, niceTime, plural, nightsBetween } from "@/lib/format";
 import { useRequireAuth } from "@/lib/useRequireAuth";
-import { HOTEL } from "@/lib/hotel";
+import { HOTEL, arrivalLabel, mapsUrl } from "@/lib/hotel";
+import { Steps } from "@/components/Steps";
 import { BOOKING_SELECT, type Booking } from "@/lib/types";
 
 export function BookingDetail() {
@@ -60,12 +61,13 @@ export function BookingDetail() {
 
   return (
     <>
-      <Link href="/bookings" className="text-sm font-medium text-sea hover:underline">&larr; My stays</Link>
+      {b.status === "held" && <Steps current={4} />}
+      <Link href="/bookings" className="text-sm font-medium text-sea underline-offset-4 hover:underline">All my stays</Link>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-4xl font-semibold">{br?.room_types?.name ?? "Your stay"}</h1>
         <BookingBadge status={b.status} />
       </div>
-      <p className="mt-1 text-muted">Booking {b.code} · {plan?.name}</p>
+      <p className="mt-1 text-muted">Booking {b.code}{plan?.name ? `, ${plan.name}` : ""}</p>
 
       <div className="mt-6 grid gap-3">
         {paymentError && b.status === "held" && <Notice tone="error">Payment couldn&rsquo;t start: {paymentError}</Notice>}
@@ -93,6 +95,8 @@ export function BookingDetail() {
             <dt className="text-muted">Check-out</dt><dd className="text-right">{niceDate(b.check_out, true)}, by {HOTEL.checkOut}</dd>
             <dt className="text-muted">Guests</dt><dd className="text-right">{guests(b.adults, b.children)}</dd>
             <dt className="text-muted">Guest</dt><dd className="text-right">{b.guest_name}</dd>
+            {arrivalLabel(b.arrival_time) && (<><dt className="text-muted">Arriving</dt><dd className="text-right">{arrivalLabel(b.arrival_time)}</dd></>)}
+            {b.special_requests && (<><dt className="text-muted">Requests</dt><dd className="text-right">{b.special_requests}</dd></>)}
             {br?.rooms?.number && (<><dt className="text-muted">Room</dt><dd className="text-right">{br.rooms.number}</dd></>)}
             {plan && (<><dt className="text-muted">Cancellation</dt><dd className="text-right">{plan.refundable ? `Free until ${plan.free_cancel_hours}h before check-in` : "Non-refundable"}</dd></>)}
           </dl>
@@ -102,11 +106,11 @@ export function BookingDetail() {
             ))}
           </ul>
           <div className="mt-2 flex items-baseline justify-between border-t border-line pt-4">
-            <span className="font-semibold">Total · {plural(nights, "night")}</span>
+            <span className="font-semibold">Total for {plural(nights, "night")}</span>
             <span className="font-display text-2xl font-semibold">{money(b.total)}</span>
           </div>
           <p className="mt-1 text-right text-sm text-muted">
-            Paid {money(b.amount_paid)}{balance > 0 && b.status !== "held" ? ` · Balance ${money(balance)}` : ""}
+            Paid {money(b.amount_paid)}{balance > 0 && b.status !== "held" ? `, ${money(balance)} still to pay` : ""}
           </p>
         </div>
 
@@ -118,6 +122,18 @@ export function BookingDetail() {
           </div>
         )}
       </div>
+
+      {["held", "confirmed"].includes(b.status) && (
+        <section className="mt-8 rounded-2xl bg-sea-tint p-6">
+          <h2 className="text-xl font-semibold">Before you arrive</h2>
+          <ul className="mt-4 grid gap-3 text-[15px] sm:grid-cols-2">
+            <li><span className="text-muted">Where</span><br />{HOTEL.address}<br /><a href={mapsUrl} target="_blank" rel="noreferrer" className="font-medium text-sea underline-offset-4 hover:underline">Get directions</a></li>
+            <li><span className="text-muted">Bring</span><br />A valid ID for {b.guest_name}</li>
+            <li><span className="text-muted">Check-in</span><br />From {HOTEL.checkIn}. Show the QR code at the front desk.</li>
+            <li><span className="text-muted">Need anything?</span><br /><a href={`tel:${HOTEL.phone.replace(/\s/g, "")}`} className="font-medium text-sea underline-offset-4 hover:underline">{HOTEL.phone}</a>, open 24 hours</li>
+          </ul>
+        </section>
+      )}
 
       {b.status === "confirmed" && (
         <div className="mt-8">
