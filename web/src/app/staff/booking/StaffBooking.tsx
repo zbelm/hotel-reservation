@@ -51,6 +51,7 @@ function Detail() {
   const [method, setMethod] = useState("cash");
   const [msg, setMsg] = useState<{ tone: "good" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState<"checkout" | "cancel" | null>(null);
 
   const [version, setVersion] = useState(0); // bump to reload
   const load = () => setVersion((v) => v + 1);
@@ -199,22 +200,33 @@ function Detail() {
 
         <div className="flex flex-wrap gap-3">
           {b.status === "checked_in" && (
-            <button className="btn-primary" disabled={busy}
-              onClick={() => {
-                if (balance > 0 && !confirm(`This guest still owes ${money(balance)}. Check out anyway?`)) return;
-                run("check_out_booking", { p_booking_id: b.id }, () => "Checked out. The room is marked dirty for housekeeping.");
-              }}>
-              Check out
-            </button>
+            ask === "checkout" ? (
+              <ConfirmBar
+                text={`This guest still owes ${money(balance)}. Check out anyway?`}
+                yes="Check out anyway" busy={busy} onNo={() => setAsk(null)}
+                onYes={() => { setAsk(null); run("check_out_booking", { p_booking_id: b.id }, () => "Checked out. The room is marked dirty for housekeeping."); }} />
+            ) : (
+              <button className="btn-primary" disabled={busy}
+                onClick={() => balance > 0
+                  ? setAsk("checkout")
+                  : run("check_out_booking", { p_booking_id: b.id }, () => "Checked out. The room is marked dirty for housekeeping.")}>
+                Check out
+              </button>
+            )
           )}
           {["held", "confirmed"].includes(b.status) && (
-            <button className="btn-danger" disabled={busy}
-              onClick={() => {
-                if (!confirm("Cancel this booking? The cancellation policy of the rate applies.")) return;
-                run("cancel_booking", { p_booking_id: b.id }, (d) => `Cancelled. Refund due: ${money(Number(d.refund_due))}.`);
-              }}>
-              Cancel booking
-            </button>
+            ask === "cancel" ? (
+              <ConfirmBar
+                text={br?.rate_plans?.refundable
+                  ? `Cancel this booking? Free until ${br.rate_plans.free_cancel_hours}h before check-in; after that the first night is kept.`
+                  : "Cancel this booking? This rate is non-refundable, so nothing is refunded."}
+                yes="Yes, cancel booking" danger busy={busy} onNo={() => setAsk(null)}
+                onYes={() => { setAsk(null); run("cancel_booking", { p_booking_id: b.id }, (d) => `Cancelled. Refund due: ${money(Number(d.refund_due))}.`); }} />
+            ) : (
+              <button className="btn-danger" disabled={busy} onClick={() => setAsk("cancel")}>
+                Cancel booking
+              </button>
+            )
           )}
         </div>
       </div>
@@ -283,3 +295,16 @@ type ChangeQuote = {
   check_in: string; check_out: string; nights: number; total: number; old_total: number;
   balance_due: number; refund_due: number;
 };
+
+// Asks before an action that can't be undone, inside the page
+function ConfirmBar({ text, yes, onYes, onNo, busy, danger }: {
+  text: string; yes: string; onYes: () => void; onNo: () => void; busy: boolean; danger?: boolean;
+}) {
+  return (
+    <div role="alertdialog" aria-label={text} className="flex w-full flex-wrap items-center gap-3 rounded-xl border border-line bg-paper p-4">
+      <p className="min-w-0 flex-1 text-sm font-medium">{text}</p>
+      <button className={danger ? "btn-danger" : "btn-primary"} disabled={busy} onClick={onYes}>{yes}</button>
+      <button className="btn-quiet" disabled={busy} onClick={onNo}>Keep it</button>
+    </div>
+  );
+}
