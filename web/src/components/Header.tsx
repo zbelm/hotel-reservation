@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { HOTEL } from "@/lib/hotel";
@@ -11,6 +11,7 @@ export function Header() {
   const { session, isStaff, loading } = useAuth();
   const { t, lang } = useT();
   const router = useRouter();
+  const pathname = usePathname();
 
   const sections = [
     { href: "/#rooms", label: t.nav.rooms },
@@ -24,6 +25,9 @@ export function Header() {
     await supabase().auth.signOut();
     router.push("/");
   }
+
+  // The staff portal has its own header
+  if (pathname.startsWith("/staff")) return null;
 
   return (
     <header style={{ viewTransitionName: "site-header" }} className="sticky top-0 z-30 border-b border-line bg-sand/85 backdrop-blur-md print:hidden">
@@ -69,7 +73,7 @@ export function Header() {
 }
 
 // A single capiz pane: the hotel's mark
-function CapizMark() {
+export function CapizMark() {
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" aria-hidden>
       <rect x="2" y="2" width="20" height="20" rx="2" fill="var(--narra)" />

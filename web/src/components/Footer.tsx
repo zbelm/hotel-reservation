@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { HOTEL, mapsUrl } from "@/lib/hotel";
 import { useT } from "@/lib/i18n";
 
 export function Footer() {
   const { t } = useT();
+  const pathname = usePathname();
+  if (pathname.startsWith("/staff")) return null; // the staff portal has no guest footer
   return (
     <footer className="bg-bay text-on-bay print:hidden">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">

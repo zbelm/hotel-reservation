@@ -7,7 +7,7 @@ export const metadata = { title: "Booking · Staff" };
 
 export default function RoutePage() {
   return (
-    <Page className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+    <Page className="min-w-0 max-w-4xl pt-2 lg:pt-0">
       <Suspense fallback={<Spinner />}>
         <StaffBooking />
       </Suspense>

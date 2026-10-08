@@ -10,7 +10,7 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
 
 **What works now:**
 - **Guests (web and app):** room search with live availability and a date picker that shows the lowest nightly price and full nights, room rates, booking with a 15-minute hold, payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards), automatic confirmation, my bookings with a QR code, changing dates online (flexible rates, up to 48 hours before check-in), uploading an ID before arrival, a printable receipt, cancellation with the refund rule applied, reviews from guests who stayed, and English or Filipino.
-- **Staff (web):** today's arrivals, departures and in-house guests, a two-week room calendar, a dashboard with occupancy and revenue charts, room board, walk-in bookings, check-in with room assignment, ID check, date changes, desk payments, check-out with a housekeeping task, and review moderation (managers).
+- **Staff (web):** a staff portal with its own sidebar and counts of what needs doing; today's arrivals, departures and in-house guests with check-in and check-out buttons, a two-week room calendar, team management by email, a dashboard with occupancy and revenue charts, room board, walk-in bookings, check-in with room assignment, ID check, date changes, desk payments, check-out with a housekeeping task, and review moderation (managers).
 
 **Booking rules** (all enforced in the database, so the web and mobile apps can't get around them):
 - Two guests can never book the last room: bookings for a room type are processed one at a time.
@@ -34,7 +34,8 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    6. `supabase/migrations/20261008000006_booking_details.sql`
    7. `supabase/migrations/20261008000007_guest_features.sql` (calendar prices, reviews, date changes, ID upload, staff dashboard)
    8. `supabase/migrations/20261008000008_guest_id_storage.sql` (private storage for guest IDs)
-   9. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   9. `supabase/migrations/20261008000009_staff_accounts.sql` (adding staff from the Team page)
+   10. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -42,14 +43,14 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
 5. **Real emails:** Supabase's built-in email sender only allows a few emails an hour and is meant for testing. For a live hotel, add free SMTP from [Brevo](https://www.brevo.com) (300 emails a day) under **Authentication → SMTP Settings**.
 6. Optional: turn on **Google** under Authentication → Providers, then set `NEXT_PUBLIC_GOOGLE_LOGIN=1` in Vercel to show the "Continue with Google" button.
 
-**Make yourself the manager:** sign in once on the website, then run in the SQL Editor:
+**Make yourself the admin:** sign in once on the website, then run in the SQL Editor:
 
 ```sql
-update public.profiles set role = 'manager'
+update public.profiles set role = 'admin'
 where id = (select id from auth.users where email = 'you@example.com');
 ```
 
-Other roles: `front_desk`, `housekeeping`, `admin`. A **Staff** link appears in the website header for staff accounts.
+**Adding staff:** after that, open **Staff → Team** on the website. Add each person's email and pick a role: **Front desk** (bookings, check-in and check-out, payments, reports), **Housekeeping** (the Rooms page only), **Manager** (everything, plus hiding reviews and managing the team) or **Admin** (same as manager, and can make other admins). If they already have an account, access starts straight away; if not, it starts the first time they sign in with that email. Nobody can change their own role, and only an admin can give or change the admin role.
 
 **Your hotel's information:** the text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is in `web/src/lib/hotel.ts` for the website and `mobile/lib/hotel.dart` for the app, each in English and Filipino. It ships with sample content for "Sample Bay Hotel": replace it with your real details before taking bookings, and keep the two languages saying the same thing. The rest of the website's wording is in `web/src/lib/messages.ts`. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); put the Filipino room description in `room_types.description_fil`, and add photo URLs to `room_types.photos` to replace the illustrations.
 
@@ -127,7 +128,7 @@ Publishing costs US$25 once for Google Play and US$99 a year for the Apple App S
 
 ## Tests
 
-The booking rules have 24 database tests (holds, sold-out, payments, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard). They run on a plain local PostgreSQL:
+The booking rules have 25 database tests (holds, sold-out, payments, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
 
 ```bash
 PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh

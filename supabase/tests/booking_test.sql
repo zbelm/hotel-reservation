@@ -445,4 +445,57 @@ do $$ declare d json; begin
 end $$;
 reset role;
 
+-- 19. Staff accounts: managers add staff by email; invites apply on first sign-in
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ begin
+  begin perform public.set_staff_role('ben@example.com', 'front_desk'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only managers can add%', sqlerrm; end;
+  begin perform * from public.list_staff(); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only managers can see%', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
+do $$ declare r json; n int; begin
+  -- existing account: role changes now
+  r := public.set_staff_role('  Ben@Example.com ', 'housekeeping');
+  assert r->>'status' = 'updated', format('expected updated %s', r);
+  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'housekeeping';
+  -- no account yet: saved as an invite
+  r := public.set_staff_role('new.clerk@example.com', 'front_desk', 'Nina Santos');
+  assert r->>'status' = 'invited', format('expected invited %s', r);
+  select count(*) into n from public.list_staff() where status = 'invited' and email = 'new.clerk@example.com';
+  assert n = 1, 'invite not listed';
+  -- safety rules
+  begin perform public.set_staff_role('boss@example.com', 'guest'); raise exception 'x';
+  exception when others then assert sqlerrm like 'You can''t change your own role%', sqlerrm; end;
+  begin perform public.set_staff_role('someone@example.com', 'admin'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only an admin%', sqlerrm; end;
+  begin perform public.set_staff_role('not-an-email', 'front_desk'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Enter a valid email%', sqlerrm; end;
+  -- guests can't read the invite table directly
+end $$;
+reset role;
+-- the invited clerk signs in for the first time and gets the role
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('55555555-5555-5555-5555-555555555555', 'New.Clerk@example.com', '{}');
+do $$ begin
+  assert (select role from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'front_desk', 'invite role not applied';
+  assert (select full_name from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'Nina Santos', 'invite name not applied';
+  assert not exists (select 1 from public.staff_invites where email = 'new.clerk@example.com'), 'invite not cleared';
+end $$;
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
+do $$ declare r json; begin
+  r := public.set_staff_role('ben@example.com', 'guest');
+  assert r->>'status' = 'removed', format('expected removed %s', r);
+  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'guest';
+end $$;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ begin
+  begin perform count(*) from public.staff_invites; raise exception 'x';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS 19 staff accounts';
+end $$;
+reset role;
+
 \echo 'All booking tests passed.'
