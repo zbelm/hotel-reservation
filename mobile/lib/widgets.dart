@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'format.dart';
+import 'i18n.dart';
 import 'theme.dart';
 
 class Loading extends StatelessWidget {
@@ -78,7 +79,7 @@ class StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(99)),
-      child: Text(bookingStatusLabel[status] ?? status,
+      child: Text(statusLabel(status),
           style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
     );
   }
@@ -95,5 +96,76 @@ class InfoRow extends StatelessWidget {
           SizedBox(width: 110, child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
           Expanded(child: Text(value, textAlign: TextAlign.right)),
         ]),
+      );
+}
+
+/// Five stars, filled to the nearest half.
+class Stars extends StatelessWidget {
+  const Stars(this.rating, {super.key, this.size = 18});
+  final num rating;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = (rating * 2).round() / 2;
+    return Semantics(
+      label: tr('$r out of 5 stars', '$r sa 5 bituin'),
+      excludeSemantics: true,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 1; i <= 5; i++)
+          Icon(
+            r >= i ? Icons.star_rounded : (r >= i - 0.5 ? Icons.star_half_rounded : Icons.star_outline_rounded),
+            size: size,
+            color: Palette.mango,
+          ),
+      ]),
+    );
+  }
+}
+
+/// FIL / EN switch for app bars.
+class LangButton extends StatelessWidget {
+  const LangButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Only on the main tabs: screens opened on top wouldn't switch until reopened
+    if (ModalRoute.of(context)?.isFirst == false) return const SizedBox.shrink();
+    return TextButton(
+        onPressed: () => setLang(isFil ? 'en' : 'fil'),
+        child: Semantics(
+          label: isFil ? 'Read in English' : 'Basahin sa Filipino',
+          excludeSemantics: true,
+          child: Text(isFil ? 'EN' : 'FIL', style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1)),
+        ),
+      );
+  }
+}
+
+class SectionTitle extends StatelessWidget {
+  const SectionTitle(this.text, {super.key, this.top = 28});
+  final String text;
+  final double top;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(top: top, bottom: 10),
+        child: Text(text, style: displayStyle(context, 22)),
+      );
+}
+
+/// A tinted message box: good news, a warning, or an error.
+class Note extends StatelessWidget {
+  const Note(this.text, {super.key, this.color = Palette.sea});
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
+        child: Text(text, style: TextStyle(color: color)),
       );
 }

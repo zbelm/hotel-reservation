@@ -13,6 +13,10 @@ dependencies:
   url_launcher: ^6.3.0
   qr_flutter: ^4.1.0
   intl: ^0.20.2
+  shared_preferences: ^2.3.0 # remembers the chosen language
+  image_picker: ^1.1.2 # photo of the guest's ID
+  pdf: ^3.11.0 # receipt as a PDF
+  printing: ^5.13.0 # save, print or share that PDF
 
 dev_dependencies:
   flutter_test:

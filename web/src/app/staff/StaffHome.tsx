@@ -11,12 +11,16 @@ import { useToday } from "@/lib/useToday";
 import { arrivalLabel } from "@/lib/hotel";
 import { BOOKING_SELECT, type Booking, type Room, type RoomStatus } from "@/lib/types";
 import { StaffGate } from "./StaffGate";
+import { CalendarTab, DashboardTab, ReviewsTab } from "./StaffInsights";
 
 const TABS = [
   { key: "today", label: "Today", frontDesk: true },
+  { key: "calendar", label: "Room calendar", frontDesk: true },
   { key: "rooms", label: "Rooms", frontDesk: false },
   { key: "find", label: "Find booking", frontDesk: true },
   { key: "walkin", label: "Walk-in", frontDesk: true },
+  { key: "dashboard", label: "Dashboard", frontDesk: true },
+  { key: "reviews", label: "Reviews", frontDesk: true },
 ] as const;
 
 export function StaffHome() {
@@ -50,6 +54,9 @@ function Dashboard() {
       {(tab === "rooms" || isHousekeeping) && <RoomBoard />}
       {tab === "find" && !isHousekeeping && <FindBooking />}
       {tab === "walkin" && !isHousekeeping && <WalkIn />}
+      {tab === "calendar" && !isHousekeeping && <CalendarTab />}
+      {tab === "dashboard" && !isHousekeeping && <DashboardTab />}
+      {tab === "reviews" && !isHousekeeping && <ReviewsTab canModerate={profile?.role === "manager" || profile?.role === "admin"} />}
     </>
   );
 }

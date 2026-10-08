@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/lib/i18n";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -11,6 +12,7 @@ import type { BookingStatus } from "@/lib/types";
 // PayMongo sends the guest here right away; the booking is confirmed a few
 // seconds later when PayMongo's webhook reaches Supabase. Poll until then.
 export function PaymentSuccess() {
+  const { t } = useT();
   const id = useSearchParams().get("booking") ?? "";
   const { session, loading } = useAuth();
   const [status, setStatus] = useState<BookingStatus | null>(null);
@@ -38,11 +40,9 @@ export function PaymentSuccess() {
   if (!session) {
     return (
       <div className="card p-8 text-center">
-        <p className="text-sm font-semibold text-good">Payment received</p>
-        <h1 className="mt-3 text-3xl font-semibold">Thank you.</h1>
-        <p className="mt-3 text-muted">
-          You can close this page and go back to the app. Your booking will show as confirmed within a minute.
-        </p>
+        <p className="text-sm font-semibold text-good">{t.payment.received}</p>
+        <h1 className="mt-3 text-3xl font-semibold">{t.payment.thanks}</h1>
+        <p className="mt-3 text-muted">{t.payment.backToApp}</p>
       </div>
     );
   }
@@ -50,22 +50,22 @@ export function PaymentSuccess() {
   if (status === "confirmed" || status === "checked_in") {
     return (
       <div className="card p-8 text-center">
-        <p className="text-sm font-semibold text-good">Payment received</p>
-        <h1 className="mt-3 text-4xl font-semibold">You&rsquo;re booked.</h1>
-        <p className="mt-3 text-muted">A receipt is on its way to your email. Show the QR code on your booking at the front desk.</p>
-        <Link href={`/booking?id=${id}`} className="btn-primary mt-6">View my booking</Link>
+        <p className="text-sm font-semibold text-good">{t.payment.received}</p>
+        <h1 className="mt-3 text-4xl font-semibold">{t.payment.booked}</h1>
+        <p className="mt-3 text-muted">{t.payment.bookedBody}</p>
+        <Link href={`/booking?id=${id}`} className="btn-primary mt-6">{t.payment.view}</Link>
       </div>
     );
   }
 
-  if (status === "held" && tries < 20) return <Spinner label="Confirming your payment with PayMongo" />;
+  if (status === "held" && tries < 20) return <Spinner label={t.payment.confirming} />;
 
   return (
     <div className="grid gap-4">
       <Notice tone="warn">
-        We haven&rsquo;t received confirmation from PayMongo yet. If you paid, your booking will update shortly; you don&rsquo;t need to pay again.
+        {t.payment.waiting}
       </Notice>
-      <Link href={`/booking?id=${id}`} className="btn-quiet">Check my booking</Link>
+      <Link href={`/booking?id=${id}`} className="btn-quiet">{t.payment.check}</Link>
     </div>
   );
 }

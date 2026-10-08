@@ -324,4 +324,125 @@ do $$ declare r json; begin
 end $$;
 reset role;
 
+-- 14. Price calendar is public and shows the cheapest one-night price per day
+set role anon;
+select set_config('request.jwt.claims', '', false);
+do $$ declare n int; p numeric; begin
+  select count(*), min(lowest_price) into n, p
+  from public.price_calendar(current_date + 70, current_date + 75, 2, 0);
+  assert n = 5, format('expected 5 days, got %s', n);
+  assert p = 2250, format('cheapest night should be the Standard Queen non-refundable (2250), got %s', p);
+  assert (select count(*) from public.price_calendar(current_date + 70, current_date + 72, 4, 2)) = 2;
+  assert (select min(lowest_price) from public.price_calendar(current_date + 70, current_date + 72, 4, 2)) = 5850,
+    'a family of six only fits the Family Suite';
+  raise notice 'PASS 14 price calendar';
+end $$;
+reset role;
+
+-- Set up: Ana has a confirmed, paid Flexible Deluxe King and a Non-refundable one
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ declare b json; begin
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a2',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a2' and name = 'Flexible'),
+        current_date + 60, current_date + 62, 2, 0, 'Ana Cruz', 'ana@example.com');
+  insert into t values ('flex', b->>'id');
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a2',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a2' and name = 'Non-refundable'),
+        current_date + 64, current_date + 65, 2, 0, 'Ana Cruz', 'ana@example.com');
+  insert into t values ('nonref', b->>'id');
+end $$;
+reset role;
+update public.bookings set status = 'confirmed', hold_expires_at = null, amount_paid = total
+where id in (select v::uuid from t where k in ('flex', 'nonref'));
+
+-- 15. Changing dates: preview, longer stay (balance due), shorter stay (refund), and the rules
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ declare r json; bid uuid := (select v::uuid from t where k = 'flex'); begin
+  r := public.change_booking_dates(bid, current_date + 60, current_date + 63, true);
+  assert (r->>'total')::numeric = 11400 and (r->>'balance_due')::numeric = 3800, format('preview %s', r);
+  assert (select check_out from public.bookings where id = bid) = current_date + 62, 'preview must not change the booking';
+  r := public.change_booking_dates(bid, current_date + 61, current_date + 62);
+  assert (r->>'total')::numeric = 3800 and (r->>'refund_due')::numeric = 3800, format('shorter stay %s', r);
+  assert (select check_in from public.bookings b where b.id = bid) = current_date + 61;
+  assert (select refund_due from public.bookings b where b.id = bid) = 3800;
+  assert (select subtotal from public.booking_rooms br where br.booking_id = bid) = 3800;
+  begin
+    perform public.change_booking_dates((select v::uuid from t where k = 'nonref'), current_date + 66, current_date + 67);
+    raise exception 'x';
+  exception when others then assert sqlerrm like 'This rate can''t be changed online%', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ begin
+  begin
+    perform public.change_booking_dates((select v::uuid from t where k = 'flex'), current_date + 61, current_date + 63);
+    raise exception 'x';
+  exception when others then assert sqlerrm = 'Booking not found', sqlerrm; end;
+  raise notice 'PASS 15 change dates: quote, longer, shorter, non-refundable and other guests blocked';
+end $$;
+reset role;
+
+-- 16. ID upload record: own booking folder only; front desk verifies and clears the file path
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ declare bid uuid := (select v::uuid from t where k = 'flex'); begin
+  begin perform public.record_id_upload(bid, 'someone-else/id.jpg'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Upload the ID into this booking%', sqlerrm; end;
+  perform public.record_id_upload(bid, bid::text || '/passport.jpg');
+  assert (select id_uploaded_at from public.bookings b where b.id = bid) is not null;
+  begin perform public.verify_guest_id(bid); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only front desk%', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare bid uuid := (select v::uuid from t where k = 'flex'); begin
+  perform public.verify_guest_id(bid);
+  assert (select id_document_path is null and id_verified_at is not null from public.bookings b where b.id = bid);
+  raise notice 'PASS 16 ID upload and front desk check';
+end $$;
+reset role;
+
+-- 17. Reviews: only after checking out, once, shown with a short name
+update public.bookings set status = 'checked_out' where id = (select v::uuid from t where k = 'flex');
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ begin
+  begin perform public.submit_review((select v::uuid from t where k = 'nonref'), 5, 'Not yet'); raise exception 'x';
+  exception when others then assert sqlerrm like 'You can review your stay after you check out%', sqlerrm; end;
+  perform public.submit_review((select v::uuid from t where k = 'flex'), 5, 'Lovely sunset from the room.');
+  begin perform public.submit_review((select v::uuid from t where k = 'flex'), 4, 'Again'); raise exception 'x';
+  exception when others then assert sqlerrm like 'You already reviewed%', sqlerrm; end;
+  begin insert into public.reviews (booking_id, property_id, display_name, rating, stayed_on)
+        values ((select v::uuid from t where k = 'nonref'), '00000000-0000-0000-0000-000000000001', 'Fake', 5, current_date);
+        raise exception 'x';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role anon;
+select set_config('request.jwt.claims', '', false);
+do $$ begin
+  assert (select display_name from public.reviews limit 1) = 'Ana C.';
+  assert (public.review_summary()->>'count')::int = 1 and (public.review_summary()->>'average')::numeric = 5;
+  raise notice 'PASS 17 verified reviews';
+end $$;
+reset role;
+
+-- 18. Dashboard is for managers and front desk only
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ begin
+  begin perform public.dashboard(current_date, current_date + 7); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only managers and front desk%', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare d json; begin
+  d := public.dashboard(current_date + 60, current_date + 63);
+  assert json_array_length(d->'days') = 3, format('days %s', d);
+  assert ((d->'days'->1)->>'revenue')::numeric = 3800, format('revenue on day 61 %s', d->'days'->1);
+  assert ((d->'days'->1)->>'sold')::int = 1;
+  assert (d->'summary'->>'reviews')::int = 1;
+  raise notice 'PASS 18 dashboard';
+end $$;
+reset role;
+
 \echo 'All booking tests passed.'

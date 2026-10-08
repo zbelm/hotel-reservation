@@ -42,3 +42,11 @@ cross join (values
 ) as p(name, description, refundable, hours, breakfast, mult)
 where rt.property_id = '00000000-0000-0000-0000-000000000001'
   and not exists (select 1 from public.rate_plans x where x.room_type_id = rt.id);
+
+-- Filipino descriptions (shown when a guest switches the website to Filipino)
+update public.room_types set description_fil = case id
+  when '00000000-0000-0000-0000-0000000000a1' then 'Maliwanag at tahimik na kuwarto para sa isa o dalawang bisita, may work desk at rain shower.'
+  when '00000000-0000-0000-0000-0000000000a2' then 'Mas maluwag, may king bed at malawak na tanaw ng look. Bagay sa mas mahabang pananatili.'
+  when '00000000-0000-0000-0000-0000000000a3' then 'Dalawang silid, dalawang kama at sala. Kasya ang pamilyang may lima.'
+  else description_fil end
+where description_fil is null;

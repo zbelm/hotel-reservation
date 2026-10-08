@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { Notice } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
+import { useT } from "@/lib/i18n";
 
 // Turn on in Vercel with NEXT_PUBLIC_GOOGLE_LOGIN=1 after enabling Google in Supabase Auth → Providers
 const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1";
@@ -14,6 +15,7 @@ function safeNext(value: string | null): string {
 }
 
 export function Login() {
+  const { t } = useT();
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
   const router = useRouter();
@@ -62,28 +64,28 @@ export function Login() {
 
   return (
     <div className="card p-7">
-      <h1 className="text-3xl font-semibold">Sign in</h1>
-      <p className="mt-2 text-muted">No password needed. We&rsquo;ll email you a sign-in link.</p>
+      <h1 className="text-3xl font-semibold">{t.login.title}</h1>
+      <p className="mt-2 text-muted">{t.login.intro}</p>
 
       {!sent ? (
         <form onSubmit={sendCode} className="mt-6 grid gap-4">
           <div>
-            <label htmlFor="email" className="label">Email</label>
+            <label htmlFor="email" className="label">{t.login.email}</label>
             <input id="email" type="email" className="field" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" autoFocus />
           </div>
-          <button className="btn-primary" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in link"}</button>
+          <button className="btn-primary" disabled={busy}>{busy ? t.login.sending : t.login.send}</button>
         </form>
       ) : (
         <form onSubmit={verify} className="mt-6 grid gap-4">
-          <Notice>Check <strong>{email}</strong> and tap the sign-in link. Open it on this device to come straight back here. If the email shows a 6-digit code instead, enter it below.</Notice>
+          <Notice>{t.login.check(email)}</Notice>
           <div>
-            <label htmlFor="code" className="label">6-digit code (if your email has one)</label>
+            <label htmlFor="code" className="label">{t.login.code}</label>
             <input id="code" inputMode="numeric" autoComplete="one-time-code" className="field text-center font-mono text-2xl tracking-[0.4em]"
               value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} required autoFocus />
           </div>
-          <button className="btn-primary" disabled={busy || code.length < 6}>{busy ? "Checking…" : "Sign in"}</button>
+          <button className="btn-primary" disabled={busy || code.length < 6}>{busy ? t.login.checking : t.login.signIn}</button>
           <button type="button" className="text-sm text-muted hover:text-ink" onClick={() => { setSent(false); setCode(""); }}>
-            Use a different email
+            {t.login.other}
           </button>
         </form>
       )}
@@ -93,9 +95,9 @@ export function Login() {
       {googleEnabled && (
         <>
           <div className="my-6 flex items-center gap-3 text-sm text-muted">
-            <span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" />
+            <span className="h-px flex-1 bg-line" />{t.login.or}<span className="h-px flex-1 bg-line" />
           </div>
-          <button className="btn-quiet w-full" onClick={google}>Continue with Google</button>
+          <button className="btn-quiet w-full" onClick={google}>{t.login.google}</button>
         </>
       )}
     </div>

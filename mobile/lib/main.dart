@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
+import 'i18n.dart';
 import 'screens/bookings_screen.dart';
+import 'screens/hotel_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/search_screen.dart';
 import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting(); // English and Filipino dates
+  await loadLang();
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     runApp(const _MissingConfig());
     return;
@@ -22,12 +27,16 @@ class HotelApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: hotelName,
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
-      home: const AuthGate(),
+    // Switching language rebuilds the screens in the new language
+    return ValueListenableBuilder<String>(
+      valueListenable: appLang,
+      builder: (context, lang, _) => MaterialApp(
+        title: hotelName,
+        debugShowCheckedModeBanner: false,
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
+        home: AuthGate(key: ValueKey(lang)),
+      ),
     );
   }
 }
@@ -53,8 +62,11 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+// Kept outside the widget so switching language stays on the same tab
+int _savedTab = 0;
+
 class _HomeShellState extends State<HomeShell> {
-  int _tab = 0;
+  int _tab = _savedTab;
 
   @override
   Widget build(BuildContext context) {
@@ -63,15 +75,19 @@ class _HomeShellState extends State<HomeShell> {
         index: _tab,
         children: [
           const SearchScreen(),
+          const HotelScreen(),
           BookingsScreen(key: ValueKey('bookings-$_tab')), // reloads when opened
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.search), label: 'Book'),
-          NavigationDestination(icon: Icon(Icons.luggage_outlined), selectedIcon: Icon(Icons.luggage), label: 'My stays'),
+        onDestinationSelected: (i) => setState(() => _tab = _savedTab = i),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.search), label: tr('Book', 'Mag-book')),
+          NavigationDestination(
+              icon: const Icon(Icons.apartment_outlined), selectedIcon: const Icon(Icons.apartment), label: tr('Hotel', 'Hotel')),
+          NavigationDestination(
+              icon: const Icon(Icons.luggage_outlined), selectedIcon: const Icon(Icons.luggage), label: tr('My stays', 'Mga booking ko')),
         ],
       ),
     );

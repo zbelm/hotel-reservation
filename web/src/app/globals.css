@@ -233,6 +233,17 @@ p { text-wrap: pretty; }
   @starting-style { .arrive { translate: none; } }
 }
 
+/* Date picker opens with a short drop */
+.picker-panel {
+  transition: opacity 0.18s ease-out, translate 0.18s ease-out;
+}
+@starting-style {
+  .picker-panel { opacity: 0; translate: 0 -6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @starting-style { .picker-panel { translate: none; } }
+}
+
 /* Loading placeholders */
 .skeleton {
   background: linear-gradient(90deg, var(--line) 0%, color-mix(in oklab, var(--line), var(--paper) 60%) 50%, var(--line) 100%);

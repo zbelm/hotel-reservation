@@ -1,17 +1,12 @@
-# hotel_reservation
+# Sample Bay Hotel guest app
 
-A new Flutter project.
+Flutter app for guests: browse the hotel, pick dates on a calendar that shows nightly prices, book and pay, and manage stays (QR code, change dates, upload an ID before arrival, receipt as a PDF, review after check-out). English and Filipino, switched with the FIL / EN button.
 
-## Getting Started
+See the main README (section "Flutter: the mobile app") for building and installing it.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+| File | What's in it |
+| --- | --- |
+| `lib/hotel.dart` | Hotel text in both languages: about, facilities, house rules, FAQ, arrival times |
+| `lib/i18n.dart` | Language switch; `tr('English', 'Filipino')` picks the text |
+| `lib/price_calendar.dart` | Date picker with prices and full nights |
+| `lib/screens/` | Book, Hotel, My stays and the screens they open |

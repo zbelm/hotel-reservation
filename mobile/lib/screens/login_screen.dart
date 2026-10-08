@@ -3,7 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api.dart';
 import '../config.dart';
+import '../i18n.dart';
 import '../theme.dart';
+import '../widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendCode() async {
     final email = _email.text.trim();
     if (!email.contains('@')) {
-      setState(() => _error = 'Enter a valid email address');
+      setState(() => _error = tr('Enter a valid email address', 'Maglagay ng tamang email address'));
       return;
     }
     setState(() {
@@ -67,14 +69,17 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
           children: [
+            const Align(alignment: Alignment.centerRight, child: LangButton()),
+            const SizedBox(height: 24),
             Text(hotelName.toUpperCase(),
                 style: TextStyle(letterSpacing: 2, fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
             const SizedBox(height: 12),
-            Text('Sign in to book\nyour stay', style: displayStyle(context, 36)),
+            Text(tr('Sign in to book\nyour stay', 'Mag-sign in para\nmag-book'), style: displayStyle(context, 36)),
             const SizedBox(height: 12),
-            Text("No password needed. We'll email you a sign-in link.", style: TextStyle(color: muted, fontSize: 16)),
+            Text(tr("No password needed. We'll email you a sign-in link.", 'Hindi kailangan ng password. Magpapadala kami ng sign-in link sa email mo.'),
+                style: TextStyle(color: muted, fontSize: 16)),
             const SizedBox(height: 32),
             if (!_sent) ...[
               TextField(
@@ -85,15 +90,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSubmitted: (_) => _sendCode(),
               ),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _busy ? null : _sendCode, child: Text(_busy ? 'Sending…' : 'Email me a sign-in link')),
+              FilledButton(onPressed: _busy ? null : _sendCode, child: Text(_busy ? tr('Sending…', 'Ipinapadala…') : tr('Email me a sign-in link', 'Ipadala ang sign-in link'))),
             ] else ...[
               Text(
-                'Open the email we sent to ${_email.text.trim()} on this phone and tap the sign-in link. '
-                'The app opens and signs you in.',
+                tr('Open the email we sent to ${_email.text.trim()} on this phone and tap the sign-in link. The app opens and signs you in.',
+                    'Buksan sa teleponong ito ang email na ipinadala namin sa ${_email.text.trim()} at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'),
                 style: TextStyle(color: muted, fontSize: 16),
               ),
               const SizedBox(height: 8),
-              Text('If your email shows a 6-digit code instead, type it here:', style: TextStyle(color: muted)),
+              Text(tr('If your email shows a 6-digit code instead, type it here:', 'Kung 6-digit na code ang nasa email, ilagay ito rito:'),
+                  style: TextStyle(color: muted)),
               const SizedBox(height: 16),
               TextField(
                 controller: _code,
@@ -102,19 +108,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 autofillHints: const [AutofillHints.oneTimeCode],
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 28, letterSpacing: 12, fontWeight: FontWeight.w600),
-                decoration: const InputDecoration(labelText: '6-digit code (optional)', counterText: ''),
+                decoration: InputDecoration(labelText: tr('6-digit code (optional)', '6-digit na code (opsyonal)'), counterText: ''),
                 onChanged: (v) {
                   if (v.length == 6) _verify();
                 },
               ),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _busy ? null : _verify, child: Text(_busy ? 'Checking…' : 'Sign in')),
+              FilledButton(onPressed: _busy ? null : _verify, child: Text(_busy ? tr('Checking…', 'Sinusuri…') : tr('Sign in', 'Mag-sign in'))),
               TextButton(
                 onPressed: () => setState(() {
                   _sent = false;
                   _code.clear();
                 }),
-                child: const Text('Use a different email'),
+                child: Text(tr('Use a different email', 'Gumamit ng ibang email')),
               ),
             ],
             if (_error != null) ...[

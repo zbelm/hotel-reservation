@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../config.dart';
 import '../format.dart';
+import '../i18n.dart';
+import '../price_calendar.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'room_screen.dart';
@@ -31,23 +33,12 @@ class _SearchScreenState extends State<SearchScreen> {
   String get _checkOut => isoDate(_dates.end);
 
   Future<void> _pickDates() async {
-    final t = todayManila();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: t,
-      lastDate: t.add(const Duration(days: 365)),
-      initialDateRange: _dates,
-      helpText: 'Check-in and check-out',
-    );
+    final picked = await pickStayDates(context, initial: _dates, adults: _adults, children: _children);
     if (picked == null) return;
-    if (picked.end.difference(picked.start).inDays < 1) return;
-    if (picked.end.difference(picked.start).inDays > 30) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stays are limited to 30 nights')));
-      }
-      return;
-    }
-    setState(() => _dates = picked);
+    setState(() {
+      _dates = picked;
+      _results = null; // old results were for other dates
+    });
   }
 
   void _search() {
@@ -65,11 +56,19 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Scaffold(
-      appBar: AppBar(title: const Text(hotelName)),
+      appBar: AppBar(title: const Text(hotelName), actions: const [LangButton()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Text('Find your room', style: displayStyle(context, 32)),
+          Text(tr('Watch the sun set over Manila Bay from your room.',
+                  'Panoorin ang paglubog ng araw sa Manila Bay mula sa iyong kuwarto.'),
+              style: displayStyle(context, 30)),
+          const SizedBox(height: 8),
+          Text(
+            tr('Twelve rooms, a rooftop pool and a café that bakes its own pandesal. Pick your dates to see prices.',
+                'Labindalawang kuwarto, rooftop pool, at café na may sariling lutong pandesal. Piliin ang petsa para makita ang presyo.'),
+            style: TextStyle(color: muted, fontSize: 15),
+          ),
           const SizedBox(height: 16),
           Card(
             child: Padding(
@@ -89,7 +88,8 @@ class _SearchScreenState extends State<SearchScreen> {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('${niceDate(_checkIn)}  →  ${niceDate(_checkOut)}',
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                            Text(plural(nightsBetween(_checkIn, _checkOut), 'night'), style: TextStyle(color: muted)),
+                            Text('${nights(nightsBetween(_checkIn, _checkOut))} · ${tr('see prices on the calendar', 'tingnan ang presyo sa kalendaryo')}',
+                                style: TextStyle(color: muted)),
                           ]),
                         ),
                         const Icon(Icons.edit_outlined, size: 18),
@@ -97,10 +97,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                   const Divider(height: 24),
-                  Counter(label: 'Adults', value: _adults, min: 1, max: 4, onChanged: (v) => setState(() => _adults = v)),
-                  Counter(label: 'Children', value: _children, min: 0, max: 2, onChanged: (v) => setState(() => _children = v)),
+                  Counter(label: tr('Adults', 'Matanda'), value: _adults, min: 1, max: 4, onChanged: (v) => setState(() => _adults = v)),
+                  Counter(label: tr('Children', 'Bata'), value: _children, min: 0, max: 2, onChanged: (v) => setState(() => _children = v)),
                   const SizedBox(height: 12),
-                  FilledButton(onPressed: _search, child: const Text('Search rooms')),
+                  FilledButton(onPressed: _search, child: Text(tr('Search rooms', 'Maghanap ng kuwarto'))),
                 ],
               ),
             ),
@@ -113,7 +113,10 @@ class _SearchScreenState extends State<SearchScreen> {
                 if (snap.connectionState != ConnectionState.done) return const Loading();
                 if (snap.hasError) return ErrorNote(errorText(snap.error!));
                 final rows = snap.data!;
-                if (rows.isEmpty) return const ErrorNote('No rooms fit that many guests. Try fewer guests.');
+                if (rows.isEmpty) {
+                  return ErrorNote(tr('No rooms fit that many guests. Try fewer guests, or call the front desk to book two rooms.',
+                      'Walang kuwartong kasya ang ganoong dami ng bisita. Bawasan ang bisita, o tumawag sa front desk para mag-book ng dalawang kuwarto.'));
+                }
                 return Column(
                   children: [
                     for (final r in rows) ...[
@@ -164,17 +167,22 @@ class _ResultCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(room['name'] as String, style: displayStyle(context, 22)),
               const SizedBox(height: 4),
-              Text('${room['bed_type']} bed · ${room['size_sqm']} m² · up to ${plural(room['max_adults'] as int, 'adult')}',
+              Text(
+                  tr('${room['bed_type']} bed · ${room['size_sqm']} m² · up to ${plural(room['max_adults'] as int, 'adult')}',
+                      '${room['bed_type']} na kama · ${room['size_sqm']} m² · hanggang ${room['max_adults']} matanda'),
                   style: TextStyle(color: muted)),
               const SizedBox(height: 12),
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Expanded(
                   child: available < 1
-                      ? const Text('Sold out for these dates', style: TextStyle(color: Palette.bad, fontWeight: FontWeight.w600))
+                      ? Text(tr('Sold out for these dates', 'Ubos na para sa mga petsang ito'),
+                          style: const TextStyle(color: Palette.bad, fontWeight: FontWeight.w600))
                       : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('from ${money(room['lowest_nightly'])}/night', style: TextStyle(color: muted)),
+                          Text(tr('from ${money(room['lowest_nightly'])} a night', 'mula ${money(room['lowest_nightly'])} bawat gabi'),
+                              style: TextStyle(color: muted)),
                           if (available <= 2)
-                            Text('Only $available left', style: const TextStyle(color: Palette.sun, fontWeight: FontWeight.w600)),
+                            Text(tr('Only $available left', '$available na lang ang natitira'),
+                                style: const TextStyle(color: Palette.sun, fontWeight: FontWeight.w600)),
                         ]),
                 ),
                 if (available > 0) Text(money(room['lowest_total']), style: displayStyle(context, 24)),

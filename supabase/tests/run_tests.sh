@@ -12,8 +12,8 @@ run() { psql -v ON_ERROR_STOP=1 -q -X -d "$DB" "$@"; }
 
 run -f tests/mock_supabase.sql
 for f in migrations/*.sql; do
-  # pg_cron is not available outside Supabase; skip the schedule migration
-  [[ "$f" == *cron* ]] && continue
+  # pg_cron and Storage only exist on Supabase; skip those migrations
+  [[ "$f" == *cron* || "$f" == *storage* ]] && continue
   run -f "$f"
 done
 run -f seed.sql

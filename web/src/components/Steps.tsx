@@ -1,9 +1,13 @@
-// Where the guest is in the booking: these four steps really are a sequence, so they're numbered.
-const STEPS = ["Dates", "Room and rate", "Your details", "Payment"];
+"use client";
 
+import { useT } from "@/lib/i18n";
+
+// Where the guest is in the booking: these four steps really are a sequence, so they're numbered.
 export function Steps({ current }: { current: 1 | 2 | 3 | 4 }) {
+  const { t } = useT();
+  const STEPS = t.steps.items;
   return (
-    <nav aria-label="Booking progress" className="mb-8">
+    <nav aria-label={t.steps.label} className="mb-8 print:hidden">
       <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
         {STEPS.map((label, i) => {
           const n = i + 1;

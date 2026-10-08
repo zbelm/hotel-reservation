@@ -31,10 +31,10 @@ const bookingTone: Record<BookingStatus, string> = {
   expired: "bg-line/60 text-muted",
 };
 
-export function BookingBadge({ status }: { status: BookingStatus }) {
+export function BookingBadge({ status, label }: { status: BookingStatus; label?: string }) {
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${bookingTone[status]}`}>
-      {bookingStatusLabel[status]}
+      {label ?? bookingStatusLabel[status]}
     </span>
   );
 }

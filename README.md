@@ -8,7 +8,9 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
 | `web/` | Guest website + staff portal (Next.js) | Vercel |
 | `mobile/` | Guest app for Android and iPhone (Flutter) | Your phone |
 
-**What works now:** room search with live availability, room rates, booking with a 15-minute hold, payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards), automatic confirmation, my bookings with a QR code, cancellation with the refund rule applied, staff dashboard (arrivals, departures, in-house), room board, walk-in bookings, check-in with room assignment, desk payments, check-out with a housekeeping task.
+**What works now:**
+- **Guests (web and app):** room search with live availability and a date picker that shows the lowest nightly price and full nights, room rates, booking with a 15-minute hold, payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards), automatic confirmation, my bookings with a QR code, changing dates online (flexible rates, up to 48 hours before check-in), uploading an ID before arrival, a printable receipt, cancellation with the refund rule applied, reviews from guests who stayed, and English or Filipino.
+- **Staff (web):** today's arrivals, departures and in-house guests, a two-week room calendar, a dashboard with occupancy and revenue charts, room board, walk-in bookings, check-in with room assignment, ID check, date changes, desk payments, check-out with a housekeeping task, and review moderation (managers).
 
 **Booking rules** (all enforced in the database, so the web and mobile apps can't get around them):
 - Two guests can never book the last room: bookings for a room type are processed one at a time.
@@ -30,7 +32,9 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    4. `supabase/migrations/20261008000004_cron.sql`
    5. `supabase/migrations/20261008000005_lock_internal_functions.sql`
    6. `supabase/migrations/20261008000006_booking_details.sql`
-   7. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   7. `supabase/migrations/20261008000007_guest_features.sql` (calendar prices, reviews, date changes, ID upload, staff dashboard)
+   8. `supabase/migrations/20261008000008_guest_id_storage.sql` (private storage for guest IDs)
+   9. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -47,7 +51,18 @@ where id = (select id from auth.users where email = 'you@example.com');
 
 Other roles: `front_desk`, `housekeeping`, `admin`. A **Staff** link appears in the website header for staff accounts.
 
-**Your hotel's information:** the website's text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is all in `web/src/lib/hotel.ts`. It ships with sample content for "Sample Bay Hotel": replace it with your real details before taking bookings. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); add photo URLs to `room_types.photos` to replace the illustrations.
+**Your hotel's information:** the text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is in `web/src/lib/hotel.ts` for the website and `mobile/lib/hotel.dart` for the app, each in English and Filipino. It ships with sample content for "Sample Bay Hotel": replace it with your real details before taking bookings, and keep the two languages saying the same thing. The rest of the website's wording is in `web/src/lib/messages.ts`. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); put the Filipino room description in `room_types.description_fil`, and add photo URLs to `room_types.photos` to replace the illustrations.
+
+**Guest IDs:** guests can upload a photo of their ID from My stays. Files go to the private `guest-ids` storage bucket; only that guest and front desk staff can open them, and the front desk deletes the photo when they confirm the ID at check-in. Hosted Supabase doesn't let the SQL Editor add storage rules, so after running migration 8 add the rule by hand:
+
+1. **Storage → Policies**, find the **guest-ids** bucket, click **New policy → For full customization**.
+2. Name: `Guest and front desk`. Allowed operations: tick **SELECT**, **INSERT** and **DELETE**. Target roles: **authenticated**.
+3. Policy definition:
+
+   ```sql
+   bucket_id = 'guest-ids' and (public.is_front_desk() or exists (select 1 from public.bookings b where b.id::text = (storage.foldername(name))[1] and b.guest_id = auth.uid()))
+   ```
+4. **Review → Save policy**.
 
 ### 2. PayMongo: online payments
 
@@ -112,7 +127,7 @@ Publishing costs US$25 once for Google Play and US$99 a year for the Apple App S
 
 ## Tests
 
-The booking rules have 13 database tests (holds, sold-out, payments, refunds, front desk, permissions). They run on a plain local PostgreSQL:
+The booking rules have 24 database tests (holds, sold-out, payments, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard). They run on a plain local PostgreSQL:
 
 ```bash
 PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh

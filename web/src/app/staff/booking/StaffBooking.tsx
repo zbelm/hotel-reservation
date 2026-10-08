@@ -107,6 +107,8 @@ function Detail() {
             <dt className="text-muted">Mobile</dt><dd className="text-right">{b.guest_phone ?? "—"}</dd>
             <dt className="text-muted">Arriving</dt><dd className="text-right">{arrivalLabel(b.arrival_time) ?? "Not given"}</dd>
             <dt className="text-muted">House rules</dt><dd className="text-right">{b.policies_accepted_at ? "Agreed online" : "Not recorded"}</dd>
+            <dt className="text-muted">ID</dt>
+            <dd className="text-right">{b.id_verified_at ? "Checked" : b.id_document_path ? "Uploaded, not checked" : "Not uploaded"}</dd>
           </dl>
           {b.special_requests && <p className="mt-4 rounded-xl bg-sun-tint p-3 text-sm"><strong>Request:</strong> {b.special_requests}</p>}
         </div>
@@ -131,6 +133,34 @@ function Detail() {
       </div>
 
       <div className="mt-6 grid gap-4">
+        {b.id_document_path && !b.id_verified_at && (
+          <div className="card flex flex-wrap items-center justify-between gap-3 p-5">
+            <div>
+              <p className="font-semibold">Guest uploaded an ID</p>
+              <p className="text-sm text-muted">Compare it with the guest at the desk. Confirming deletes the photo so we don&rsquo;t keep it.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-quiet" disabled={busy} onClick={async () => {
+                const { data, error } = await supabase().storage.from("guest-ids").createSignedUrl(b.id_document_path!, 60);
+                if (error || !data) return setMsg({ tone: "error", text: error?.message ?? "Could not open the ID." });
+                window.open(data.signedUrl, "_blank", "noopener");
+              }}>
+                View ID
+              </button>
+              <button className="btn-primary" disabled={busy} onClick={async () => {
+                setBusy(true);
+                await supabase().storage.from("guest-ids").remove([b.id_document_path!]);
+                setBusy(false);
+                run("verify_guest_id", { p_booking_id: b.id }, () => "ID checked. The photo has been deleted.");
+              }}>
+                ID matches, delete photo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {b.status === "confirmed" && <ChangeDates booking={b} onDone={(text) => { setMsg({ tone: "good", text }); load(); }} />}
+
         {canCheckIn && (
           <div className="card flex flex-wrap items-end gap-3 p-5">
             <div className="min-w-40 flex-1">
@@ -191,3 +221,65 @@ function Detail() {
     </>
   );
 }
+
+function ChangeDates({ booking, onDone }: { booking: Booking; onDone: (text: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [checkIn, setCheckIn] = useState(booking.check_in);
+  const [checkOut, setCheckOut] = useState(booking.check_out);
+  const [quote, setQuote] = useState<ChangeQuote | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function call(preview: boolean) {
+    setBusy(true);
+    setError("");
+    const { data, error } = await supabase().rpc("change_booking_dates", {
+      p_booking_id: booking.id, p_check_in: checkIn, p_check_out: checkOut, p_preview: preview,
+    });
+    setBusy(false);
+    if (error) return setError(error.message);
+    const q = data as ChangeQuote;
+    if (preview) return setQuote(q);
+    setOpen(false);
+    setQuote(null);
+    onDone(`Dates changed to ${niceDate(q.check_in)} – ${niceDate(q.check_out, true)}. New total ${money(q.total)}.`);
+  }
+
+  if (!open) {
+    return <div><button className="btn-quiet" onClick={() => setOpen(true)}>Change dates</button></div>;
+  }
+
+  return (
+    <div className="card p-5">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-44">
+          <label className="label" htmlFor="cd-in">Check-in</label>
+          <input id="cd-in" type="date" className="field" value={checkIn} onChange={(e) => { setCheckIn(e.target.value); setQuote(null); }} />
+        </div>
+        <div className="w-44">
+          <label className="label" htmlFor="cd-out">Check-out</label>
+          <input id="cd-out" type="date" className="field" min={checkIn} value={checkOut} onChange={(e) => { setCheckOut(e.target.value); setQuote(null); }} />
+        </div>
+        <button className="btn-quiet" disabled={busy || !checkIn || checkOut <= checkIn} onClick={() => call(true)}>Check price</button>
+        <button className="btn-quiet" onClick={() => { setOpen(false); setQuote(null); setError(""); }}>Close</button>
+      </div>
+      {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
+      {quote && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-sand p-4 text-[15px]">
+          <p>
+            {niceDate(quote.check_in)} – {niceDate(quote.check_out, true)}: <strong>{money(quote.total)}</strong>
+            <span className="text-muted"> (was {money(quote.old_total)})</span>
+            {Number(quote.balance_due) > 0 && <> · guest owes {money(quote.balance_due)}</>}
+            {Number(quote.refund_due) > 0 && <> · refund due {money(quote.refund_due)}</>}
+          </p>
+          <button className="btn-primary" disabled={busy} onClick={() => call(false)}>Confirm change</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ChangeQuote = {
+  check_in: string; check_out: string; nights: number; total: number; old_total: number;
+  balance_due: number; refund_due: number;
+};

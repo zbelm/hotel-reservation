@@ -8,10 +8,15 @@ import { SearchForm } from "@/components/SearchForm";
 import { Steps } from "@/components/Steps";
 import { Notice, RoomArt } from "@/components/ui";
 import { isConfigured, supabase } from "@/lib/supabase";
-import { guests, money, niceDate, plural } from "@/lib/format";
+import { money } from "@/lib/format";
+import { useT } from "@/lib/i18n";
+import { fmtDate } from "@/lib/messages";
+import { useRoomDescription } from "@/lib/useRoomText";
 import type { SearchResult } from "@/lib/types";
 
 export function SearchResults() {
+  const { t, lang } = useT();
+  const describe = useRoomDescription();
   const params = useSearchParams();
   const checkIn = params.get("check_in") ?? "";
   const checkOut = params.get("check_out") ?? "";
@@ -49,20 +54,18 @@ export function SearchResults() {
       <SearchForm key={query} compact initial={{ checkIn, checkOut, adults, children }} />
 
       <div className="mb-6 mt-12 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-3xl font-semibold sm:text-4xl">Rooms for your stay</h1>
+        <h1 className="text-3xl font-semibold sm:text-4xl">{t.results.title}</h1>
         {ready && (
-          <p className="text-muted">
-            {niceDate(checkIn)} to {niceDate(checkOut)}, {guests(adults, children)}
-          </p>
+          <p className="text-muted">{t.results.when(fmtDate(checkIn, lang), fmtDate(checkOut, lang), t.guests(adults, children))}</p>
         )}
       </div>
 
-      {!isConfigured && <Notice tone="warn">The app isn&rsquo;t connected to Supabase yet. Add the keys from the README to <code>.env.local</code>.</Notice>}
-      {!ready && <Notice>Choose your check-in and check-out dates above, then select Search rooms.</Notice>}
+      {!isConfigured && <Notice tone="warn">{t.results.notConnected}</Notice>}
+      {!ready && <Notice>{t.results.chooseDates}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
       {ready && !results && !error && <ResultsSkeleton />}
       {results && results.length === 0 && (
-        <Notice>No room fits {guests(adults, children)}. Try fewer guests per room, or call the front desk to book two rooms together.</Notice>
+        <Notice>{t.results.noneFit(t.guests(adults, children))}</Notice>
       )}
 
       <div className="grid gap-5">
@@ -75,10 +78,8 @@ export function SearchResults() {
               <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
                 <div className="max-w-md">
                   <h2 className="text-2xl font-semibold">{r.name}</h2>
-                  <p className="mt-1 text-sm text-muted">
-                    {r.bed_type} bed, {r.size_sqm} m², up to {plural(r.max_adults, "adult")}
-                  </p>
-                  {r.description && <p className="mt-3 text-[15px] leading-relaxed">{r.description}</p>}
+                  <p className="mt-1 text-sm text-muted">{t.roomFacts(r.bed_type, r.size_sqm, r.max_adults, r.max_children)}</p>
+                  {describe(r.room_type_id, r.description) && <p className="mt-3 text-[15px] leading-relaxed">{describe(r.room_type_id, r.description)}</p>}
                   <ul className="mt-3 flex flex-wrap gap-1.5">
                     {r.amenities.slice(0, 5).map((a) => (
                       <li key={a} className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">{a}</li>
@@ -87,14 +88,14 @@ export function SearchResults() {
                 </div>
                 <div className="shrink-0 sm:text-right">
                   {soldOut ? (
-                    <p className="font-semibold text-bad">Sold out for these dates</p>
+                    <p className="font-semibold text-bad">{t.results.soldOut}</p>
                   ) : (
                     <>
-                      <p className="text-sm text-muted">{plural(r.nights, "night")} from</p>
+                      <p className="text-sm text-muted">{t.results.nightsFrom(t.nights(r.nights))}</p>
                       <p className="font-display text-3xl font-semibold">{money(r.lowest_total)}</p>
-                      <p className="text-sm text-muted">{money(r.lowest_nightly)} a night, taxes included</p>
-                      {r.available <= 2 && <p className="mt-1 text-sm font-semibold text-sun">Only {r.available} left</p>}
-                      <Link href={href} transitionTypes={FORWARD} className="btn-primary mt-3">Choose a rate</Link>
+                      <p className="text-sm text-muted">{t.results.perNight(money(r.lowest_nightly))}</p>
+                      {r.available <= 2 && <p className="mt-1 text-sm font-semibold text-sun">{t.results.onlyLeft(r.available)}</p>}
+                      <Link href={href} transitionTypes={FORWARD} className="btn-primary mt-3">{t.results.chooseRate}</Link>
                     </>
                   )}
                 </div>

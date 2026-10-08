@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../format.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'booking_screen.dart';
@@ -37,10 +38,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My stays'),
+        title: Text(tr('My stays', 'Mga booking ko')),
         actions: [
+          const LangButton(),
           IconButton(
-            tooltip: 'Sign out',
+            tooltip: tr('Sign out', 'Mag-sign out'),
             icon: const Icon(Icons.logout),
             onPressed: () => db.auth.signOut(),
           ),
@@ -55,8 +57,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
             if (snap.hasError) return ListView(padding: const EdgeInsets.all(16), children: [ErrorNote(errorText(snap.error!))]);
             final rows = snap.data!;
             if (rows.isEmpty) {
-              return ListView(padding: const EdgeInsets.all(32), children: const [
-                Text("You haven't booked a stay yet. Tap Book to find a room.", textAlign: TextAlign.center),
+              return ListView(padding: const EdgeInsets.all(32), children: [
+                Text(tr("You haven't booked a stay yet. Tap Book to find a room.",
+                        'Wala ka pang booking. Pindutin ang Mag-book para maghanap ng kuwarto.'),
+                    textAlign: TextAlign.center),
               ]);
             }
             return ListView.separated(
@@ -66,13 +70,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
               itemBuilder: (context, i) {
                 final b = rows[i];
                 final rooms = List<Map<String, dynamic>>.from(b['booking_rooms'] as List? ?? const []);
-                final roomName = rooms.isNotEmpty ? (rooms.first['room_types']?['name'] as String? ?? 'Room') : 'Room';
+                final roomName = rooms.isNotEmpty ? (rooms.first['room_types']?['name'] as String? ?? tr('Room', 'Kuwarto')) : tr('Room', 'Kuwarto');
                 return Card(
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     title: Text(roomName, style: displayStyle(context, 19)),
                     subtitle: Text(
-                      '${niceDate(b['check_in'] as String, year: true)} · ${plural(nightsBetween(b['check_in'] as String, b['check_out'] as String), 'night')}\n${b['code']}',
+                      '${niceDate(b['check_in'] as String, year: true)} · ${nights(nightsBetween(b['check_in'] as String, b['check_out'] as String))}\n${b['code']}',
                     ),
                     isThreeLine: true,
                     trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [

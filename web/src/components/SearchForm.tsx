@@ -3,7 +3,9 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { addDays } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { useToday } from "@/lib/useToday";
+import { DateRangePicker } from "./DateRangePicker";
 import { FORWARD } from "./Page";
 
 type Props = {
@@ -12,6 +14,7 @@ type Props = {
 };
 
 export function SearchForm({ initial, compact }: Props) {
+  const { t } = useT();
   const router = useRouter();
   const today = useToday();
   // Empty means "not chosen yet": fall back to tomorrow for 2 nights
@@ -25,8 +28,8 @@ export function SearchForm({ initial, compact }: Props) {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (checkOut <= checkIn) {
-      setError("Check-out must be after check-in.");
+    if (!checkIn || !checkOut || checkOut <= checkIn) {
+      setError(t.search.checkoutAfter);
       return;
     }
     setError("");
@@ -35,34 +38,23 @@ export function SearchForm({ initial, compact }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className={`card grid gap-3 p-4 sm:grid-cols-[1fr_1fr_0.7fr_0.7fr_auto] sm:items-end ${compact ? "" : "shadow-[var(--shadow)] sm:p-5"}`}>
+    <form onSubmit={submit} className={`card grid gap-3 p-4 sm:grid-cols-[2fr_0.7fr_0.7fr_auto] sm:items-end ${compact ? "" : "shadow-[var(--shadow)] sm:p-5"}`}>
+      <DateRangePicker checkIn={checkIn} checkOut={checkOut} adults={adults} kids={children}
+        onChange={(ci, co) => { setCheckIn(ci); setCheckOut(co); }} />
       <div>
-        <label htmlFor="check-in" className="label">Check-in</label>
-        <input id="check-in" type="date" className="field" min={today || undefined} value={checkIn} required
-          onChange={(e) => {
-            setCheckIn(e.target.value);
-            if (checkOut <= e.target.value) setCheckOut(addDays(e.target.value, 1));
-          }} />
-      </div>
-      <div>
-        <label htmlFor="check-out" className="label">Check-out</label>
-        <input id="check-out" type="date" className="field" min={checkIn ? addDays(checkIn, 1) : undefined} max={checkIn ? addDays(checkIn, 30) : undefined} value={checkOut} required
-          onChange={(e) => setCheckOut(e.target.value)} />
-      </div>
-      <div>
-        <label htmlFor="adults" className="label">Adults</label>
+        <label htmlFor="adults" className="label">{t.search.adults}</label>
         <select id="adults" className="field" value={adults} onChange={(e) => setAdults(Number(e.target.value))}>
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
       <div>
-        <label htmlFor="children" className="label">Children</label>
+        <label htmlFor="children" className="label">{t.search.children}</label>
         <select id="children" className="field" value={children} onChange={(e) => setChildren(Number(e.target.value))}>
           {[0, 1, 2].map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
-      <button type="submit" className="btn-primary h-[46px]">Search rooms</button>
-      {error && <p className="text-sm text-bad sm:col-span-5">{error}</p>}
+      <button type="submit" className="btn-primary h-[46px]">{t.search.submit}</button>
+      {error && <p className="text-sm text-bad sm:col-span-4">{error}</p>}
     </form>
   );
 }

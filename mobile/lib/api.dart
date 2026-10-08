@@ -9,6 +9,7 @@ const bookingSelect =
 String errorText(Object e) {
   if (e is PostgrestException) return e.message;
   if (e is AuthException) return e.message;
+  if (e is StorageException) return e.message;
   if (e is FunctionException) {
     final d = e.details;
     if (d is Map && d['error'] != null) return '${d['error']}';

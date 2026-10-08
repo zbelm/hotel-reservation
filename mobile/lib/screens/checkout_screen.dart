@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
+import '../config.dart';
 import '../format.dart';
+import '../hotel.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'booking_screen.dart';
+import 'hotel_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({
@@ -33,6 +37,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _email = TextEditingController();
   final _phone = TextEditingController();
   final _requests = TextEditingController();
+  String _arrival = 'not_sure';
+  bool _agree = false;
   bool _busy = false;
   String? _error;
 
@@ -58,8 +64,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
+  void _addRequest(String idea) {
+    final now = _requests.text.trim();
+    if (now.toLowerCase().contains(idea.toLowerCase())) return;
+    _requests.text = now.isEmpty ? idea : '$now, $idea';
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
+    if (!_agree) {
+      setState(() => _error = tr('Please confirm you have read the house rules and cancellation terms.',
+          'Pakikumpirma na nabasa mo na ang mga patakaran at tuntunin sa pagkansela.'));
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -89,6 +106,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     final bookingId = booking['id'] as String;
+
+    // Arrival time and the agreement are extras: a failure here shouldn't stop the booking
+    try {
+      await db.rpc('save_booking_details', params: {
+        'p_booking_id': bookingId,
+        'p_arrival_time': _arrival,
+        'p_accept_policies': true,
+      });
+    } catch (_) {}
+
     String? payError;
     try {
       final url = await createCheckout(bookingId);
@@ -109,8 +136,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     final offer = widget.offer;
     final refundable = offer['refundable'] == true;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final n = nightsBetween(widget.checkIn, widget.checkOut);
+    final guestName = _name.text.trim().isEmpty ? tr('the guest named above', 'sa bisitang nakapangalan sa itaas') : _name.text.trim();
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Who's staying?")),
+      appBar: AppBar(title: Text(tr("Who's staying?", 'Sino ang tutuloy?'))),
       body: Form(
         key: _form,
         child: ListView(
@@ -121,57 +152,131 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(widget.roomName, style: displayStyle(context, 22)),
-                  Text(offer['name'] as String, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  Text(offer['name'] as String, style: TextStyle(color: muted)),
                   const SizedBox(height: 8),
                   InfoRow('Check-in', niceDate(widget.checkIn, year: true)),
                   InfoRow('Check-out', niceDate(widget.checkOut, year: true)),
-                  InfoRow('Guests', guests(widget.adults, widget.children)),
+                  InfoRow(tr('Guests', 'Mga bisita'), guests(widget.adults, widget.children)),
                   const Divider(height: 20),
                   Row(children: [
-                    const Expanded(child: Text('Total', style: TextStyle(fontWeight: FontWeight.w600))),
+                    Expanded(
+                        child: Text(tr('Total for ${nights(n)}', 'Kabuuan para sa ${nights(n)}'),
+                            style: const TextStyle(fontWeight: FontWeight.w600))),
                     Text(money(offer['total']), style: displayStyle(context, 24)),
                   ]),
-                  const SizedBox(height: 6),
-                  Text(refundable ? 'Free cancellation until ${offer['free_cancel_hours']}h before check-in.' : "This rate can't be refunded.",
-                      style: TextStyle(color: refundable ? Palette.good : Palette.sun)),
+                  Text(tr('In pesos. VAT and service charge included.', 'Nasa piso. Kasama na ang VAT at service charge.'),
+                      style: TextStyle(color: muted, fontSize: 13)),
                 ]),
               ),
             ),
-            const SizedBox(height: 20),
+
+            SectionTitle(tr('Guest details', 'Detalye ng bisita'), top: 20),
             TextFormField(
               controller: _name,
-              decoration: const InputDecoration(labelText: 'Full name'),
+              decoration: InputDecoration(labelText: tr('Full name, as on the ID', 'Buong pangalan, gaya ng nasa ID')),
               textCapitalization: TextCapitalization.words,
-              validator: (v) => (v ?? '').trim().isEmpty ? 'Enter the guest name' : null,
+              onChanged: (_) => setState(() {}),
+              validator: (v) => (v ?? '').trim().isEmpty ? tr('Enter the guest name', 'Ilagay ang pangalan ng bisita') : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _email,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: InputDecoration(labelText: tr('Email for the confirmation', 'Email para sa kumpirmasyon')),
               keyboardType: TextInputType.emailAddress,
-              validator: (v) => (v ?? '').contains('@') ? null : 'Enter a valid email',
+              validator: (v) => (v ?? '').contains('@') ? null : tr('Enter a valid email', 'Maglagay ng tamang email'),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _phone,
-              decoration: const InputDecoration(labelText: 'Mobile number', hintText: '+63 917 123 4567'),
+              decoration: InputDecoration(labelText: tr('Mobile number', 'Mobile number'), hintText: '+63 917 123 4567'),
               keyboardType: TextInputType.phone,
             ),
-            const SizedBox(height: 12),
+
+            SectionTitle(tr('Your arrival', 'Ang iyong pagdating'), top: 20),
+            Text(
+              tr('Roughly when will you arrive on ${niceDate(widget.checkIn)}? Check-in starts at $checkInTime, and the front desk is open all night.',
+                  'Anong oras ka inaasahang darating sa ${niceDate(widget.checkIn)}? Nagsisimula ang check-in nang $checkInTime, at bukas buong gabi ang front desk.'),
+              style: TextStyle(color: muted),
+            ),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final entry in hotel.arrivalTimes.entries)
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _arrival == entry.key,
+                  onSelected: (_) => setState(() => _arrival = entry.key),
+                ),
+            ]),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _requests,
-              decoration: const InputDecoration(labelText: 'Special requests (optional)'),
+              decoration: InputDecoration(
+                labelText: tr('Requests for the hotel (optional)', 'Mga hiling sa hotel (opsyonal)'),
+                helperText: tr("We'll do our best; requests aren't guaranteed.",
+                    'Gagawin namin ang aming makakaya; hindi garantisado ang mga hiling.'),
+              ),
               maxLines: 3,
             ),
-            if (_error != null) ErrorNote(_error!),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _busy ? null : _submit,
-              child: Text(_busy ? 'Holding your room…' : 'Continue to payment · ${money(offer['total'])}'),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 4, children: [
+              for (final idea in hotel.requestIdeas)
+                ActionChip(label: Text('+ $idea'), onPressed: () => _addRequest(idea)),
+            ]),
+
+            SectionTitle(tr('Before you pay', 'Bago magbayad'), top: 20),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    refundable
+                        ? tr('${offer['name']}: free to cancel or change dates until ${offer['free_cancel_hours']} hours before check-in. After that, the first night is kept.',
+                            '${offer['name']}: libreng kanselahin o palitan ang petsa hanggang ${offer['free_cancel_hours']} oras bago ang check-in. Pagkatapos noon, hindi na ibabalik ang bayad sa unang gabi.')
+                        : tr("${offer['name']}: this rate can't be refunded if you cancel or don't arrive.",
+                            '${offer['name']}: walang refund ang rate na ito kapag kinansela o hindi ka dumating.'),
+                    style: TextStyle(color: refundable ? Palette.good : Palette.sun, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(tr('Bring a valid ID for $guestName. Check-in from $checkInTime, check-out by $checkOutTime.',
+                      'Magdala ng valid na ID para kay $guestName. Check-in mula $checkInTime, check-out hanggang $checkOutTime.')),
+                  const SizedBox(height: 8),
+                  Text(tr('No pets or smoking in rooms. Quiet hours 10 PM to 7 AM.',
+                      'Bawal ang alagang hayop at paninigarilyo sa kuwarto. Oras ng katahimikan: 10 PM hanggang 7 AM.')),
+                  TextButton(
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HotelScreen())),
+                    child: Text(tr('Read all house rules', 'Basahin ang lahat ng patakaran')),
+                  ),
+                ]),
+              ),
             ),
             const SizedBox(height: 8),
-            Text('Your room is held for 15 minutes while you pay with GCash, Maya, GrabPay, QR Ph or card.',
-                textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            CheckboxListTile(
+              value: _agree,
+              onChanged: (v) => setState(() {
+                _agree = v ?? false;
+                if (_agree) _error = null;
+              }),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              title: Text(tr("I've read the house rules and this rate's cancellation terms.",
+                  'Nabasa ko na ang mga patakaran ng hotel at ang mga tuntunin sa pagkansela ng rate na ito.')),
+            ),
+            if (_error != null) ErrorNote(_error!),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _busy ? null : _submit,
+              child: Text(_busy
+                  ? tr('Holding your room…', 'Inihahawak ang kuwarto mo…')
+                  : tr('Hold my room and pay ${money(offer['total'])}', 'Ihawak ang kuwarto at magbayad ng ${money(offer['total'])}')),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              tr('Your room is held for 15 minutes while you pay with GCash, Maya, GrabPay, QR Ph or card.',
+                  'Ihahawak ang kuwarto mo nang 15 minuto habang nagbabayad ka sa GCash, Maya, GrabPay, QR Ph o card.'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted),
+            ),
           ],
         ),
       ),

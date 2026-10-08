@@ -12,6 +12,7 @@ class Palette {
   static const sun = Color(0xFFB8572E);
   static const good = Color(0xFF2F7A4B);
   static const bad = Color(0xFFA23B2E);
+  static const mango = Color(0xFFE39A2F); // review stars
 }
 
 ThemeData buildTheme(Brightness brightness) {

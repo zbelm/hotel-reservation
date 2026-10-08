@@ -5,11 +5,15 @@ import { useEffect, useState } from "react";
 import { FORWARD } from "@/components/Page";
 import { Notice, RoomArt } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { addDays, money, plural } from "@/lib/format";
+import { addDays, money } from "@/lib/format";
+import { useT } from "@/lib/i18n";
+import { useRoomDescription } from "@/lib/useRoomText";
 import { useToday } from "@/lib/useToday";
 import type { RoomType } from "@/lib/types";
 
 export function RoomsPreview() {
+  const { t } = useT();
+  const describe = useRoomDescription();
   const today = useToday();
   const [rooms, setRooms] = useState<RoomType[] | null>(null);
   const [error, setError] = useState("");
@@ -26,7 +30,7 @@ export function RoomsPreview() {
       });
   }, []);
 
-  if (error) return <div className="mt-10"><Notice tone="error">Rooms couldn&rsquo;t load: {error}</Notice></div>;
+  if (error) return <div className="mt-10"><Notice tone="error">{t.home.roomsError(error)}</Notice></div>;
 
   if (!rooms) {
     return (
@@ -60,19 +64,16 @@ export function RoomsPreview() {
           </Link>
           <div className="flex flex-col justify-center">
             <h3 className="text-2xl font-semibold sm:text-3xl">{r.name}</h3>
-            <p className="mt-2 text-muted">
-              {r.bed_type} bed, {r.size_sqm} m², sleeps {plural(r.max_adults, "adult")}
-              {r.max_children ? ` and ${plural(r.max_children, "child", "children")}` : ""}
-            </p>
-            {r.description && <p className="mt-4 max-w-[60ch] text-lg leading-relaxed">{r.description}</p>}
+            <p className="mt-2 text-muted">{t.roomFacts(r.bed_type, r.size_sqm, r.max_adults, r.max_children)}</p>
+            {describe(r.id, r.description) && <p className="mt-4 max-w-[60ch] text-lg leading-relaxed">{describe(r.id, r.description)}</p>}
             <ul className="mt-4 flex flex-wrap gap-1.5">
               {r.amenities.map((a) => (
                 <li key={a} className="rounded-full border border-line px-2.5 py-1 text-sm text-muted">{a}</li>
               ))}
             </ul>
             <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <p><span className="font-display text-2xl font-semibold">{money(r.base_price)}</span> <span className="text-muted">a night, flexible rate</span></p>
-              <Link href={stay(r.id)} transitionTypes={FORWARD} className="btn-primary">See prices for your dates</Link>
+              <p><span className="font-display text-2xl font-semibold">{money(r.base_price)}</span> <span className="text-muted">{t.home.aNight}</span></p>
+              <Link href={stay(r.id)} transitionTypes={FORWARD} className="btn-primary">{t.home.seePrices}</Link>
             </div>
           </div>
         </article>

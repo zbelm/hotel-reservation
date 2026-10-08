@@ -27,6 +27,7 @@ export type RoomType = {
   id: string;
   name: string;
   description: string | null;
+  description_fil?: string | null;
   max_adults: number;
   max_children: number;
   bed_type: string | null;
@@ -74,6 +75,9 @@ export type Booking = {
   special_requests: string | null;
   arrival_time: string | null;
   policies_accepted_at: string | null;
+  id_document_path?: string | null;
+  id_uploaded_at?: string | null;
+  id_verified_at?: string | null;
   created_at: string;
   booking_rooms?: {
     id: string;
@@ -99,3 +103,15 @@ export type Room = {
 
 export const BOOKING_SELECT =
   "*, booking_rooms(id, room_type_id, room_id, nightly_prices, room_types(name), rate_plans(name, refundable, free_cancel_hours, includes_breakfast), rooms(number))";
+
+export type Review = {
+  id: string;
+  booking_id: string;
+  room_type_id: string | null;
+  display_name: string;
+  rating: number;
+  body: string | null;
+  is_published: boolean;
+  stayed_on: string;
+  created_at: string;
+};
