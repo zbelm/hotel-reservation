@@ -106,6 +106,11 @@ export function StaffShell({ children }: { children: ReactNode }) {
               <p className="text-on-bay-muted">{ROLE_LABEL[profile.role]}</p>
             </div>
           )}
+          {session && (
+            <Link href="/password" className="hidden rounded-full px-3 py-2 text-sm text-on-bay-muted transition-colors hover:text-on-bay sm:inline-flex">
+              Password
+            </Link>
+          )}
           <Link href="/" className="hidden rounded-full px-3 py-2 text-sm text-on-bay-muted transition-colors hover:text-on-bay sm:inline-flex">
             Website
           </Link>

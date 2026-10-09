@@ -48,6 +48,13 @@ export function MyBookings() {
       )}
       {upcoming.length > 0 && <BookingList title={t.stays.upcoming} items={upcoming} />}
       {past.length > 0 && <BookingList title={t.stays.past} items={past} />}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-paper px-5 py-4">
+        <div>
+          <p className="font-semibold">{t.password.promptTitle}</p>
+          <p className="text-sm text-muted">{t.password.prompt}</p>
+        </div>
+        <Link href="/password" className="btn-quiet">{t.password.promptLink}</Link>
+      </div>
     </>
   );
 }

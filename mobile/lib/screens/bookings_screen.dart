@@ -6,6 +6,7 @@ import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'booking_screen.dart';
+import 'password_screen.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -41,6 +42,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
         title: Text(tr('My stays', 'Mga booking ko')),
         actions: [
           const LangButton(),
+          IconButton(
+            tooltip: tr('Set a password', 'Maglagay ng password'),
+            icon: const Icon(Icons.key_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PasswordScreen())),
+          ),
           IconButton(
             tooltip: tr('Sign out', 'Mag-sign out'),
             icon: const Icon(Icons.logout),
