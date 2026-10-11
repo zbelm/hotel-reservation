@@ -16,4 +16,11 @@ void main() {
     expect(money(11400), '₱11,400');
     expect(money('2500.00'), '₱2,500');
   });
+
+  test('a stay counts as started once check-in time has passed in Manila', () {
+    expect(stayStarted('2020-01-01', '2:00 PM'), isTrue);
+    expect(stayStarted('2999-01-01', '2:00 PM'), isFalse);
+    final yesterday = isoDate(DateTime.now().toUtc().add(const Duration(hours: 8)).subtract(const Duration(days: 1)));
+    expect(stayStarted(yesterday, '2:00 PM'), isTrue);
+  });
 }

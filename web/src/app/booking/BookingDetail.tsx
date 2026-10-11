@@ -10,7 +10,7 @@ import { PayNowButton } from "@/components/PayNowButton";
 import { Stars } from "@/components/Reviews";
 import { Steps } from "@/components/Steps";
 import { supabase } from "@/lib/supabase";
-import { money, nightsBetween } from "@/lib/format";
+import { money, nightsBetween, stayStarted } from "@/lib/format";
 import { HOTEL, ONLINE_PAYMENTS, arrivalLabel, mapsUrl } from "@/lib/hotel";
 import { useT } from "@/lib/i18n";
 import { fmtDate, fmtTime } from "@/lib/messages";
@@ -84,6 +84,10 @@ export function BookingDetail() {
   const plan = br?.rate_plans;
   const nights = nightsBetween(b.check_in, b.check_out);
   const holdActive = b.status === "held" && b.hold_expires_at && new Date(b.hold_expires_at) > new Date();
+  // A hold can end on screen (held, past its time) or after the clean-up job ran (expired)
+  const holdEnded = (b.status === "held" && !holdActive) || b.status === "expired";
+  // Once check-in time has passed, changes and cancellations go through the hotel
+  const started = b.status === "confirmed" && stayStarted(b.check_in, HOTEL.checkIn);
   const balance = Number(b.total) - Number(b.amount_paid);
   const arriving = arrivalLabel(b.arrival_time, lang);
   const upcoming = ["held", "confirmed"].includes(b.status);
@@ -120,7 +124,7 @@ export function BookingDetail() {
             </div>
           </Notice>
         )}
-        {b.status === "held" && !holdActive && (
+        {holdEnded && (
           <Notice tone="error">{t.booking.holdEnded} <Link href="/" className="underline">{t.booking.bookAgain}</Link></Notice>
         )}
         {Number(b.refund_due) > 0 && <Notice>{t.booking.refundDue(money(b.refund_due))}</Notice>}
@@ -166,7 +170,7 @@ export function BookingDetail() {
         )}
       </div>
 
-      {b.status === "confirmed" && plan && (
+      {b.status === "confirmed" && plan && !started && (
         <ChangeDates booking={b} refundable={plan.refundable} onChanged={(msg) => { setNotice(msg); load(); }} />
       )}
 
@@ -185,7 +189,9 @@ export function BookingDetail() {
 
       {b.status === "checked_out" && <ReviewForm booking={b} />}
 
-      {(b.status === "confirmed" || holdActive) && (
+      {started && <div className="mt-8"><Notice>{t.booking.stayStarted}</Notice></div>}
+
+      {((b.status === "confirmed" && !started) || holdActive) && (
         <div className="mt-8">
           {!confirming ? (
             <button className="btn-danger" onClick={() => setConfirming(true)}>{t.booking.cancel}</button>

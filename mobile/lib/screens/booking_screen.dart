@@ -259,6 +259,10 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     final status = b['status'] as String;
     final holdEnds = b['hold_expires_at'] as String?;
     final holdActive = status == 'held' && holdEnds != null && DateTime.parse(holdEnds).isAfter(DateTime.now());
+    // A hold can end on screen (held, past its time) or after the clean-up job ran (expired)
+    final holdEnded = (status == 'held' && !holdActive) || status == 'expired';
+    // Once check-in time has passed, changes and cancellations go through the hotel
+    final started = status == 'confirmed' && stayStarted(b['check_in'] as String, checkInTime);
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final arriving = arrivalLabel(b['arrival_time'] as String?);
     final requests = (b['special_requests'] as String?)?.trim() ?? '';
@@ -317,7 +321,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
               ),
               const SizedBox(height: 12),
             ],
-            if (status == 'held' && !holdActive) ...[
+            if (holdEnded) ...[
               ErrorNote(tr('This hold has ended and the room was released. Please book again.',
                   'Tapos na ang paghawak at binitawan na ang kuwarto. Mag-book ulit.')),
               OutlinedButton(
@@ -404,10 +408,15 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                 ]),
               ),
             ),
-            if (status == 'confirmed') _changeDatesCard(b, plan),
+            if (status == 'confirmed' && !started) _changeDatesCard(b, plan),
             if (status == 'checked_out') _ReviewCard(bookingId: widget.bookingId, existing: _myReview, onPosted: _load),
             if (status == 'confirmed' || holdActive) _beforeYouArrive(b),
-            if (status == 'confirmed' || holdActive) ...[
+            if (started) ...[
+              const SizedBox(height: 16),
+              Note(tr('Your stay has started. To change or cancel it, please talk to the front desk.',
+                  'Nagsimula na ang pananatili mo. Para baguhin o kanselahin ito, kausapin ang front desk.')),
+            ],
+            if ((status == 'confirmed' && !started) || holdActive) ...[
               const SizedBox(height: 16),
               OutlinedButton(
                 onPressed: _busy ? null : () => _cancel(plan),

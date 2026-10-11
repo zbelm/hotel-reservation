@@ -652,4 +652,32 @@ do $$ declare r text; bid uuid := (select v::uuid from t where k = 'late_online'
 end $$;
 reset role;
 
+-- 22. Guests can't cancel once the stay has started; an admin can
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ declare b json; begin
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible'),
+        current_date + 130, current_date + 132, 1, 0, 'Ben Reyes', 'ben@example.com');
+  insert into t values ('started', b->>'id');
+  perform public.choose_pay_at_hotel((b->>'id')::uuid);
+end $$;
+reset role;
+update public.bookings set check_in = current_date - 1, check_out = current_date + 1 where id = (select v::uuid from t where k = 'started');
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  begin
+    perform public.cancel_booking((select v::uuid from t where k = 'started'));
+  exception when others then ok := sqlerrm like '%already started%';
+  end;
+  assert ok, 'guest must not cancel a stay that has started';
+end $$;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare r json; begin
+  r := public.cancel_booking((select v::uuid from t where k = 'started'));
+  assert r->>'status' = 'cancelled', 'admin can still cancel';
+  raise notice 'PASS 22 guests cancel online only before check-in';
+end $$;
+reset role;
+
 \echo 'All booking tests passed.'

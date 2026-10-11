@@ -11,6 +11,15 @@ export function todayManila(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
 }
 
+// True once check-in time on that date has passed at the hotel (Manila is UTC+8 all year)
+export function stayStarted(checkIn: string, checkInTime: string): boolean {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(checkInTime.trim());
+  const h = m ? (Number(m[1]) % 12) + (m[3].toUpperCase() === "PM" ? 12 : 0) : 14;
+  const min = m ? Number(m[2]) : 0;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return Date.now() >= Date.parse(`${checkIn}T${pad(h)}:${pad(min)}:00+08:00`);
+}
+
 export function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);

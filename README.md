@@ -15,7 +15,7 @@ A reservation system: guests search and book rooms on the web or the mobile app,
 **Booking rules** (all enforced in the database, so the web and mobile apps can't get around them):
 - Two guests can never book the last room: bookings for a room type are processed one at a time.
 - Unpaid bookings hold the room for 15 minutes, then release it automatically.
-- Flexible rate: free cancellation until 48 hours before check-in, then the first night is kept. Non-refundable rate: no refund.
+- Flexible rate: free cancellation until 48 hours before check-in, then the first night is kept. Non-refundable rate: no refund. Once check-in time has passed, guests can no longer cancel online; an admin cancels or marks a no-show.
 - Guests only see their own bookings. Only admins see rooms and all bookings, and only admins change prices and add staff.
 
 ---
@@ -38,7 +38,8 @@ A reservation system: guests search and book rooms on the web or the mobile app,
    10. `supabase/migrations/20261011000010_pay_at_hotel_and_fixes.sql` (pay at the hotel, plus security and refund fixes)
    11. `supabase/migrations/20261011000011_qa_fixes_and_photos.sql` (database checker fixes, room photos; hides Non-refundable rates until online payment is on)
    12. `supabase/migrations/20261011000012_reservation_only.sql` (one staff role, admin; removes check-in, check-out, room assignment and guest ID upload)
-   13. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   13. `supabase/migrations/20261011000013_guest_cancel_before_arrival.sql` (guests cancel online only before check-in time; after that, an admin handles it)
+   14. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -125,7 +126,7 @@ Publishing costs US$25 once for Google Play and US$99 a year for the Apple App S
 
 ## Tests
 
-The booking rules have 21 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, walk-ins, permissions, no-shows, calendar prices, date changes, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
+The booking rules have 22 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, walk-ins, permissions, no-shows, calendar prices, date changes, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
 
 ```bash
 PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh

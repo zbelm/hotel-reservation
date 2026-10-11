@@ -29,6 +29,16 @@ DateTime todayManila() {
   return DateTime(now.year, now.month, now.day);
 }
 
+/// True once check-in time on that date has passed at the hotel (Manila is UTC+8 all year).
+bool stayStarted(String checkIn, String checkInTime) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})\s*(AM|PM)$', caseSensitive: false).firstMatch(checkInTime.trim());
+  final h = m == null ? 14 : int.parse(m.group(1)!) % 12 + (m.group(3)!.toUpperCase() == 'PM' ? 12 : 0);
+  final min = m == null ? 0 : int.parse(m.group(2)!);
+  final d = parseDate(checkIn);
+  final startsUtc = DateTime.utc(d.year, d.month, d.day, h, min).subtract(const Duration(hours: 8));
+  return !DateTime.now().toUtc().isBefore(startsUtc);
+}
+
 int nightsBetween(String a, String b) => parseDate(b).difference(parseDate(a)).inDays;
 
 String plural(int n, String one, [String? many]) => '$n ${n == 1 ? one : (many ?? '${one}s')}';
