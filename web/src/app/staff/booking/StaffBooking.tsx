@@ -93,6 +93,9 @@ function Detail() {
         <BookingBadge status={b.status} />
       </div>
       <p className="mt-1 font-mono text-muted">{b.code} · booked via {b.source.replace("_", " ")}</p>
+      {b.payment_option === "pay_at_hotel" && balance > 0 && ["confirmed", "checked_in"].includes(b.status) && (
+        <div className="mt-4"><Notice tone="warn">Pays at the hotel: collect {money(balance)} and record it below.</Notice></div>
+      )}
 
       {msg && <div className="mt-5"><Notice tone={msg.tone}>{msg.text}</Notice></div>}
 
@@ -188,7 +191,7 @@ function Detail() {
             <div className="w-36">
               <label className="label" htmlFor="method">Method</label>
               <select id="method" className="field" value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="cash">Cash</option><option value="card">Card terminal</option><option value="gcash">GCash QR</option><option value="maya">Maya QR</option>
+                <option value="cash">Cash</option><option value="card">Card terminal</option><option value="gcash">GCash QR</option><option value="maya">Maya QR</option><option value="bank_transfer">Bank transfer</option>
               </select>
             </div>
             <button className="btn-quiet" disabled={busy || Number(amount) <= 0}

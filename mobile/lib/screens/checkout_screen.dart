@@ -40,6 +40,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _arrival = 'not_sure';
   bool _agree = false;
   bool _busy = false;
+  String? _picked; // 'hotel' or 'online'
+
+  bool get _canPayHotel => widget.offer['refundable'] == true;
+  String? get _payBy => _picked ?? (_canPayHotel ? 'hotel' : (onlinePayments ? 'online' : null));
   String? _error;
 
   @override
@@ -77,6 +81,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           'Pakikumpirma na nabasa mo na ang mga patakaran at tuntunin sa pagkansela.'));
       return;
     }
+    if (_payBy == null) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -115,6 +120,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'p_accept_policies': true,
       });
     } catch (_) {}
+
+    if (_payBy == 'hotel') {
+      String? hotelError;
+      try {
+        await db.rpc('choose_pay_at_hotel', params: {'p_booking_id': bookingId});
+      } catch (e) {
+        hotelError = errorText(e);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => BookingScreen(bookingId: bookingId, paymentError: hotelError, justBooked: hotelError == null)),
+        (route) => route.isFirst,
+      );
+      return;
+    }
 
     String? payError;
     try {
@@ -262,20 +282,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               title: Text(tr("I've read the house rules and this rate's cancellation terms.",
                   'Nabasa ko na ang mga patakaran ng hotel at ang mga tuntunin sa pagkansela ng rate na ito.')),
             ),
+            SectionTitle(tr('How to pay', 'Paano magbabayad'), top: 12),
+            if (!_canPayHotel && !onlinePayments)
+              Note(
+                  tr("This rate has to be paid online, and online payment isn't available yet. Go back and choose a Flexible rate to pay at the hotel.",
+                      'Kailangang bayaran online ang rate na ito, at wala pang online na bayad. Bumalik at pumili ng Flexible na rate para magbayad sa hotel.'),
+                  color: Palette.sun)
+            else
+              Card(
+                child: Column(children: [
+                  if (_canPayHotel)
+                    RadioListTile<String>(
+                      value: 'hotel',
+                      groupValue: _payBy,
+                      onChanged: (v) => setState(() => _picked = v),
+                      title: Text(tr('Pay at the hotel', 'Magbayad sa hotel'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(tr('Your room is confirmed now. Pay ${money(offer['total'])} at the front desk when you arrive: cash, card, GCash or Maya.',
+                          'Kumpirmado na ang kuwarto mo. Bayaran ang ${money(offer['total'])} sa front desk pagdating mo: cash, card, GCash o Maya.')),
+                    ),
+                  if (onlinePayments)
+                    RadioListTile<String>(
+                      value: 'online',
+                      groupValue: _payBy,
+                      onChanged: (v) => setState(() => _picked = v),
+                      title: Text(tr('Pay online now', 'Magbayad online ngayon'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(tr('GCash, Maya, GrabPay, QR Ph or card. We hold the room for 15 minutes while you pay.',
+                          'GCash, Maya, GrabPay, QR Ph o card. Ihahawak namin ang kuwarto nang 15 minuto habang nagbabayad ka.')),
+                    ),
+                ]),
+              ),
+            const SizedBox(height: 8),
             if (_error != null) ErrorNote(_error!),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: _busy ? null : _submit,
-              child: Text(_busy
-                  ? tr('Holding your room…', 'Inihahawak ang kuwarto mo…')
-                  : tr('Hold my room and pay ${money(offer['total'])}', 'Ihawak ang kuwarto at magbayad ng ${money(offer['total'])}')),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              tr('Your room is held for 15 minutes while you pay with GCash, Maya, GrabPay, QR Ph or card.',
-                  'Ihahawak ang kuwarto mo nang 15 minuto habang nagbabayad ka sa GCash, Maya, GrabPay, QR Ph o card.'),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: muted),
+              onPressed: _busy || _payBy == null ? null : _submit,
+              child: Text(_payBy == 'hotel'
+                  ? (_busy
+                      ? tr('Confirming your room…', 'Kinukumpirma ang kuwarto mo…')
+                      : tr('Confirm, pay ${money(offer['total'])} at the hotel', 'Kumpirmahin, bayaran ang ${money(offer['total'])} sa hotel'))
+                  : (_busy
+                      ? tr('Holding your room…', 'Inihahawak ang kuwarto mo…')
+                      : tr('Hold my room and pay ${money(offer['total'])}', 'Ihawak ang kuwarto at magbayad ng ${money(offer['total'])}'))),
             ),
           ],
         ),

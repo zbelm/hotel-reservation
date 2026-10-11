@@ -75,6 +75,7 @@ export type Booking = {
   special_requests: string | null;
   arrival_time: string | null;
   policies_accepted_at: string | null;
+  payment_option?: "online" | "pay_at_hotel" | "front_desk";
   id_document_path?: string | null;
   id_uploaded_at?: string | null;
   id_verified_at?: string | null;

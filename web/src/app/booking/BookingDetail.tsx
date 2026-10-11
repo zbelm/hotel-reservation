@@ -11,7 +11,7 @@ import { Stars } from "@/components/Reviews";
 import { Steps } from "@/components/Steps";
 import { supabase } from "@/lib/supabase";
 import { money, nightsBetween } from "@/lib/format";
-import { HOTEL, arrivalLabel, mapsUrl } from "@/lib/hotel";
+import { HOTEL, ONLINE_PAYMENTS, arrivalLabel, mapsUrl } from "@/lib/hotel";
 import { useT } from "@/lib/i18n";
 import { fmtDate, fmtTime } from "@/lib/messages";
 import { useRequireAuth } from "@/lib/useRequireAuth";
@@ -23,11 +23,13 @@ export function BookingDetail() {
   const params = useSearchParams();
   const id = params.get("id") ?? "";
   const paymentError = params.get("payment_error");
+  const justBooked = params.get("booked") === "1";
 
   const [b, setB] = useState<Booking | null>(null);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState("");
+  const [payError, setPayError] = useState("");
 
   const [version, setVersion] = useState(0); // bump to reload
   const userId = session?.user.id;
@@ -43,6 +45,19 @@ export function BookingDetail() {
   }, [userId, id, version]);
 
   const load = () => setVersion((v) => v + 1);
+
+  async function payAtHotel() {
+    setError("");
+    const { error } = await supabase().rpc("choose_pay_at_hotel", { p_booking_id: id });
+    if (error) {
+      setNotice("");
+      setPayError(error.message);
+      return;
+    }
+    setPayError("");
+    setNotice(t.booking.booked);
+    load();
+  }
 
   async function cancel() {
     const { data, error } = await supabase().rpc("cancel_booking", { p_booking_id: id });
@@ -63,6 +78,8 @@ export function BookingDetail() {
   const balance = Number(b.total) - Number(b.amount_paid);
   const arriving = arrivalLabel(b.arrival_time, lang);
   const upcoming = ["held", "confirmed"].includes(b.status);
+  const payAtHotelDue = b.payment_option === "pay_at_hotel" && balance > 0 && ["confirmed", "checked_in"].includes(b.status);
+  const canPayHotel = Boolean(plan?.refundable);
   const hasReceipt = Number(b.amount_paid) > 0 || ["confirmed", "checked_in", "checked_out"].includes(b.status);
 
   return (
@@ -77,12 +94,20 @@ export function BookingDetail() {
 
       <div className="mt-6 grid gap-3">
         {paymentError && b.status === "held" && <Notice tone="error">{t.booking.payFailed(paymentError)}</Notice>}
+        {payError && <Notice tone="error">{payError}</Notice>}
+        {justBooked && !notice && b.status === "confirmed" && <Notice tone="good">{t.booking.booked}</Notice>}
         {notice && <Notice tone="good">{notice}</Notice>}
+        {payAtHotelDue && <Notice>{t.booking.payAtHotel(money(balance))}</Notice>}
         {holdActive && (
           <Notice tone="warn">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span>{t.booking.heldUntil} <strong>{fmtTime(b.hold_expires_at!, lang)}</strong>{t.booking.heldAfter}</span>
-              <PayNowButton bookingId={b.id} />
+              <span>{t.booking.heldUntil} <strong>{fmtTime(b.hold_expires_at!, lang)}</strong>{ONLINE_PAYMENTS ? t.booking.heldAfter : t.booking.heldAfterHotel}</span>
+              <div className="flex flex-wrap gap-2">
+                {canPayHotel && (
+                  <button className={ONLINE_PAYMENTS ? "btn-quiet" : "btn-primary"} onClick={payAtHotel}>{t.booking.payAtHotelInstead}</button>
+                )}
+                {ONLINE_PAYMENTS && <PayNowButton bookingId={b.id} />}
+              </div>
             </div>
           </Notice>
         )}
@@ -102,6 +127,7 @@ export function BookingDetail() {
             {arriving && (<><dt className="text-muted">{t.booking.arriving}</dt><dd className="text-right">{arriving}</dd></>)}
             {b.special_requests && (<><dt className="text-muted">{t.booking.requests}</dt><dd className="text-right">{b.special_requests}</dd></>)}
             {br?.rooms?.number && (<><dt className="text-muted">{t.booking.room}</dt><dd className="text-right">{br.rooms.number}</dd></>)}
+            {b.status !== "held" && b.payment_option && (<><dt className="text-muted">{t.booking.payment}</dt><dd className="text-right">{b.payment_option === "pay_at_hotel" ? t.booking.atHotel : b.payment_option === "front_desk" ? t.booking.atDesk : t.booking.online}</dd></>)}
             {plan && (<><dt className="text-muted">{t.booking.cancellation}</dt><dd className="text-right">{plan.refundable ? t.booking.freeUntil(plan.free_cancel_hours) : t.booking.nonRefundable}</dd></>)}
           </dl>
           <ul className="mt-5 divide-y divide-line border-t border-line text-sm">

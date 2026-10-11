@@ -143,7 +143,7 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
                     <p className="mt-2 text-sm">{niceDate(b.check_in)} – {niceDate(b.check_out)} · <span className="font-mono">{b.code}</span></p>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
                       <span className="text-muted">Arriving {arrivalLabel(b.arrival_time)?.toLowerCase() ?? "time not given"}</span>
-                      {balance > 0 && <span className="font-semibold text-sun">{money(balance)} to pay</span>}
+                      {balance > 0 && <span className="font-semibold text-sun">{money(balance)} to pay{b.payment_option === "pay_at_hotel" ? " · pays at hotel" : ""}</span>}
                     </div>
                     {step && <span className="btn-primary mt-3 w-full">{step}</span>}
                   </Link>
@@ -176,7 +176,7 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
                       <td className="px-4 py-3">{br?.rooms?.number ? <strong className="font-semibold">{br.rooms.number} </strong> : null}<span className="text-muted">{br?.room_types?.name}</span></td>
                       <td className="whitespace-nowrap px-4 py-3">{niceDate(b.check_in)} – {niceDate(b.check_out)}<p className="text-xs text-muted">{plural(nightsBetween(b.check_in, b.check_out), "night")}</p></td>
                       <td className="whitespace-nowrap px-4 py-3 text-muted">{arrivalLabel(b.arrival_time) ?? "Not given"}</td>
-                      <td className={`whitespace-nowrap px-4 py-3 tabular-nums ${balance > 0 ? "font-semibold text-sun" : "text-muted"}`}>{balance > 0 ? money(balance) : "Paid"}</td>
+                      <td className={`whitespace-nowrap px-4 py-3 tabular-nums ${balance > 0 ? "font-semibold text-sun" : "text-muted"}`}>{balance > 0 ? money(balance) : "Paid"}{balance > 0 && b.payment_option === "pay_at_hotel" && <p className="text-xs font-normal text-muted">Pays at hotel</p>}</td>
                       <td className="px-4 py-3"><BookingBadge status={b.status} /></td>
                       <td className="px-4 py-3 text-right">
                         <Link href={`/staff/booking?id=${b.id}`} className={step ? "btn-primary px-3.5! py-1.5! text-sm" : "text-sm font-medium text-sea hover:underline"}>

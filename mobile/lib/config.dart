@@ -14,3 +14,7 @@ const authRedirect = 'com.samplebayhotel.app://login-callback';
 
 const checkInTime = '2:00 PM';
 const checkOutTime = '12:00 PM';
+
+/// Build with --dart-define=ONLINE_PAYMENTS=true once PayMongo is set up. Until then
+/// guests pay at the hotel (Flexible rates only).
+const onlinePayments = bool.fromEnvironment('ONLINE_PAYMENTS');

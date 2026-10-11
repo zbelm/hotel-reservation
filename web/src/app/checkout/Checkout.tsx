@@ -9,7 +9,7 @@ import { Steps } from "@/components/Steps";
 import { Notice, RoomArt, Spinner } from "@/components/ui";
 import { functionError, supabase } from "@/lib/supabase";
 import { money, nightsBetween } from "@/lib/format";
-import { HOTEL } from "@/lib/hotel";
+import { HOTEL, ONLINE_PAYMENTS } from "@/lib/hotel";
 import { useT } from "@/lib/i18n";
 import { fmtDate } from "@/lib/messages";
 import { useRequireAuth } from "@/lib/useRequireAuth";
@@ -39,6 +39,7 @@ export function Checkout() {
   const [arrival, setArrival] = useState("not_sure");
   const [requests, setRequests] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [picked, setPicked] = useState<"hotel" | "online" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,6 +57,10 @@ export function Checkout() {
     });
   }, [roomTypeId, planId, checkIn, checkOut]);
 
+  // Pay at the hotel is offered on refundable rates; online only when PayMongo is set up
+  const canPayHotel = Boolean(offer?.refundable);
+  const payBy = picked ?? (canPayHotel ? "hotel" : ONLINE_PAYMENTS ? "online" : null);
+
   function addIdea(idea: string) {
     setRequests((r) => (r.includes(idea) ? r : r.trim() ? `${r.trim()}. ${idea}` : idea));
   }
@@ -66,6 +71,7 @@ export function Checkout() {
       setError("MUST_AGREE");
       return;
     }
+    if (!payBy) return;
     setBusy(true);
     setError("");
 
@@ -95,6 +101,17 @@ export function Checkout() {
     // Save name and phone for next time
     if (session && (name !== profile?.full_name || phone !== (profile?.phone ?? ""))) {
       await sb.from("profiles").update({ full_name: name, phone }).eq("id", session.user.id);
+    }
+
+    if (payBy === "hotel") {
+      const { error: hotelErr } = await sb.rpc("choose_pay_at_hotel", { p_booking_id: booking.id });
+      if (hotelErr) {
+        // Leave the hold so they can try again from the booking page
+        router.push(`/booking?id=${booking.id}&payment_error=${encodeURIComponent(hotelErr.message)}`);
+        return;
+      }
+      router.push(`/booking?id=${booking.id}&booked=1`);
+      return;
     }
 
     const { data: pay, error: payErr } = await sb.functions.invoke("create-checkout", { body: { booking_id: booking.id } });
@@ -193,9 +210,28 @@ export function Checkout() {
             </label>
           </fieldset>
 
+          <fieldset className="card grid gap-3 p-6">
+            <legend className="float-left mb-1 font-display text-xl font-semibold">{t.checkout.payHow}</legend>
+            {offer && !canPayHotel && !ONLINE_PAYMENTS ? (
+              <div className="clear-both"><Notice tone="warn">{t.checkout.onlineOnly}</Notice></div>
+            ) : (
+              <div className="clear-both grid gap-3">
+                {canPayHotel && (
+                  <PayChoice checked={payBy === "hotel"} onChange={() => setPicked("hotel")} title={t.checkout.payHotel}
+                    help={t.checkout.payHotelHelp(offer ? money(offer.total) : "")} />
+                )}
+                {ONLINE_PAYMENTS && (
+                  <PayChoice checked={payBy === "online"} onChange={() => setPicked("online")} title={t.checkout.payOnline} help={t.checkout.payOnlineHelp} />
+                )}
+              </div>
+            )}
+          </fieldset>
+
           {error && <Notice tone="error">{error === "MUST_AGREE" ? t.checkout.mustAgree : error === "RATE_GONE" ? t.checkout.rateGone : error}</Notice>}
-          <button className="btn-primary py-3.5! text-base" disabled={busy || !offer}>
-            {busy ? t.checkout.holding : offer ? t.checkout.pay(money(offer.total)) : t.checkout.payPlain}
+          <button className="btn-primary py-3.5! text-base" disabled={busy || !offer || !payBy}>
+            {payBy === "hotel"
+              ? busy ? t.checkout.confirming : t.checkout.confirmHotel(offer ? money(offer.total) : "")
+              : busy ? t.checkout.holding : offer ? t.checkout.pay(money(offer.total)) : t.checkout.payPlain}
           </button>
         </form>
 
@@ -227,5 +263,17 @@ export function Checkout() {
         </aside>
       </div>
     </>
+  );
+}
+
+function PayChoice({ checked, onChange, title, help }: { checked: boolean; onChange: () => void; title: string; help: string }) {
+  return (
+    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3.5 transition-colors ${checked ? "border-sea bg-sea-tint" : "border-line hover:border-sea"}`}>
+      <input type="radio" name="pay" checked={checked} onChange={onChange} className="mt-1 h-4 w-4 accent-[var(--sea)]" />
+      <span>
+        <span className="block font-semibold">{title}</span>
+        <span className="block text-sm text-muted">{help}</span>
+      </span>
+    </label>
   );
 }

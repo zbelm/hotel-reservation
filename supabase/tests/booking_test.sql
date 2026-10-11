@@ -315,11 +315,16 @@ reset role;
 update public.bookings set hold_expires_at = now() - interval '1 second' where status = 'held';
 insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total)
 values ('HRNOSHOW1', '00000000-0000-0000-0000-000000000001', 'Late', 'late@example.com',
-        (now() at time zone 'Asia/Manila')::date - 1, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100);
+        (now() at time zone 'Asia/Manila')::date - 2, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100);
+-- Arriving after midnight: yesterday's booking is not a no-show before today's check-out time
+insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total)
+values ('HRLATE0001', '00000000-0000-0000-0000-000000000001', 'After midnight', 'night@example.com',
+        (now() at time zone 'Asia/Manila')::date, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100);
 set role service_role;
 do $$ declare r json; begin
   r := public.expire_holds_and_no_shows();
   assert (r->>'expired')::int >= 1 and (r->>'no_show')::int = 1, format('unexpected cleanup result %s', r);
+  assert (select status from public.bookings where code = 'HRLATE0001') = 'confirmed', 'tonight''s arrival must not be a no-show';
   raise notice 'PASS 13 cleanup job';
 end $$;
 reset role;
@@ -360,9 +365,16 @@ where id in (select v::uuid from t where k in ('flex', 'nonref'));
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
 do $$ declare r json; bid uuid := (select v::uuid from t where k = 'flex'); begin
+  -- paid online: a longer stay needs the front desk
+  begin
+    perform public.change_booking_dates(bid, current_date + 60, current_date + 63, true);
+    raise exception 'x';
+  exception when others then assert sqlerrm like 'A longer or pricier stay needs the difference paid first%', sqlerrm; end;
+  perform set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
   r := public.change_booking_dates(bid, current_date + 60, current_date + 63, true);
   assert (r->>'total')::numeric = 11400 and (r->>'balance_due')::numeric = 3800, format('preview %s', r);
   assert (select check_out from public.bookings where id = bid) = current_date + 62, 'preview must not change the booking';
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
   r := public.change_booking_dates(bid, current_date + 61, current_date + 62);
   assert (r->>'total')::numeric = 3800 and (r->>'refund_due')::numeric = 3800, format('shorter stay %s', r);
   assert (select check_in from public.bookings b where b.id = bid) = current_date + 61;
@@ -497,5 +509,142 @@ do $$ begin
   raise notice 'PASS 19 staff accounts';
 end $$;
 reset role;
+
+-- 20. Pay at the hotel, and the QA fixes (refunds, walk-ins, invites, roles, holds, privacy, desk payments)
+select set_config('request.jwt.claims', '', false);
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  ('66666666-6666-6666-6666-666666666666', 'unconfirmed@example.com', '{}', null),
+  ('77777777-7777-7777-7777-777777777777', 'hk@example.com', '{"full_name":"Housekeeper"}', now());
+update public.profiles set role = 'housekeeping' where id = '77777777-7777-7777-7777-777777777777';
+
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ declare b json; r json; flex uuid; nonref uuid; i int; begin
+  select id into flex from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible';
+  select id into nonref from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Non-refundable';
+  -- Flexible rate: confirmed without paying, paid at the desk later
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1', flex, current_date + 80, current_date + 82, 2, 0, 'Ben Reyes', 'ben@example.com');
+  r := public.choose_pay_at_hotel((b->>'id')::uuid);
+  assert r->>'status' = 'confirmed', format('pay at hotel %s', r);
+  assert (select payment_option from public.bookings where id = (b->>'id')::uuid) = 'pay_at_hotel';
+  assert (select hold_expires_at from public.bookings where id = (b->>'id')::uuid) is null;
+  insert into t values ('cash1', b->>'id');
+  -- calling it twice is harmless
+  r := public.choose_pay_at_hotel((b->>'id')::uuid);
+  assert r->>'status' = 'confirmed';
+  -- pay-at-hotel guests may add a night (paid at the desk)
+  r := public.change_booking_dates((b->>'id')::uuid, current_date + 80, current_date + 83);
+  assert (select total from public.bookings where id = (b->>'id')::uuid) > (r->>'old_total')::numeric;
+  -- Non-refundable must be paid online
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1', nonref, current_date + 84, current_date + 85, 2, 0, 'Ben Reyes', 'ben@example.com');
+  begin perform public.choose_pay_at_hotel((b->>'id')::uuid); raise exception 'x';
+  exception when others then assert sqlerrm like 'This rate must be paid online%', sqlerrm; end;
+  -- At most 3 live holds: this is 1, add 2 more, the 4th is refused
+  perform public.create_booking('00000000-0000-0000-0000-0000000000a1', nonref, current_date + 86, current_date + 87, 2, 0, 'Ben Reyes', 'ben@example.com');
+  perform public.create_booking('00000000-0000-0000-0000-0000000000a1', nonref, current_date + 88, current_date + 89, 2, 0, 'Ben Reyes', 'ben@example.com');
+  begin
+    perform public.create_booking('00000000-0000-0000-0000-0000000000a1', nonref, current_date + 90, current_date + 91, 2, 0, 'Ben Reyes', 'ben@example.com');
+    raise exception 'x';
+  exception when others then assert sqlerrm like 'You have 3 bookings waiting%', sqlerrm; end;
+  -- clear the holds, then fill the pay-at-hotel limit of 3 unpaid bookings
+  for b in select json_build_object('id', id) from public.bookings where guest_id = auth.uid() and status = 'held' loop
+    perform public.cancel_booking((b->>'id')::uuid);
+  end loop;
+  for i in 1..2 loop
+    b := public.create_booking('00000000-0000-0000-0000-0000000000a1', flex, current_date + 90 + i * 2, current_date + 91 + i * 2, 2, 0, 'Ben Reyes', 'ben@example.com');
+    perform public.choose_pay_at_hotel((b->>'id')::uuid);
+  end loop;
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1', flex, current_date + 97, current_date + 98, 2, 0, 'Ben Reyes', 'ben@example.com');
+  begin perform public.choose_pay_at_hotel((b->>'id')::uuid); raise exception 'x';
+  exception when others then assert sqlerrm like 'You already have 3 pay-at-hotel bookings%', sqlerrm; end;
+  perform public.cancel_booking((b->>'id')::uuid);
+end $$;
+
+-- Someone who hasn't confirmed their email can't pay at the hotel
+select set_config('request.jwt.claims', '{"sub":"66666666-6666-6666-6666-666666666666"}', false);
+do $$ declare b json; begin
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible'),
+        current_date + 99, current_date + 100, 1, 0, 'Who', 'unconfirmed@example.com');
+  begin perform public.choose_pay_at_hotel((b->>'id')::uuid); raise exception 'x';
+  exception when others then assert sqlerrm like 'Please confirm your email%', sqlerrm; end;
+  -- and can't confirm someone else's booking
+  begin perform public.choose_pay_at_hotel((select v::uuid from t where k = 'cash1')); raise exception 'x';
+  exception when others then assert sqlerrm = 'Booking not found', sqlerrm; end;
+end $$;
+
+-- Front desk: payments can't exceed the balance; unknown methods refused
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare r json; bid uuid := (select v::uuid from t where k = 'cash1'); bal numeric; begin
+  select total - amount_paid into bal from public.bookings where id = bid;
+  begin perform public.record_desk_payment(bid, bal + 1, 'cash'); raise exception 'x';
+  exception when others then assert sqlerrm like 'That''s more than the balance%', sqlerrm; end;
+  begin perform public.record_desk_payment(bid, 10, 'bitcoin'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Unknown payment method%', sqlerrm; end;
+  r := public.record_desk_payment(bid, bal, 'cash');
+  assert (r->>'balance')::numeric = 0, format('balance %s', r);
+end $$;
+-- Walk-ins (no guest account) can only be cancelled by the front desk
+do $$ declare b json; begin
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible'),
+        current_date + 101, current_date + 102, 1, 0, 'Walk In', 'walk@example.com', null, null, 'front_desk');
+  assert (select payment_option from public.bookings where id = (b->>'id')::uuid) = 'front_desk';
+  insert into t values ('walkin2', b->>'id');
+end $$;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ declare r json; begin
+  begin perform public.cancel_booking((select v::uuid from t where k = 'walkin2')); raise exception 'x';
+  exception when others then assert sqlerrm like 'You can only cancel your own%', sqlerrm; end;
+  insert into t select 'refund', (public.create_booking('00000000-0000-0000-0000-0000000000a2',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a2' and name = 'Flexible'),
+        current_date + 110, current_date + 112, 2, 0, 'Ana Cruz', 'ana@example.com'))->>'id';
+end $$;
+reset role;
+update public.bookings set status = 'confirmed', hold_expires_at = null, amount_paid = total
+ where id = (select v::uuid from t where k = 'refund');
+set role authenticated;
+do $$ declare r json; bid uuid := (select v::uuid from t where k = 'refund'); begin
+  -- Refunds aren't counted twice: Ana paid 7600, shortened (3800 owed back), then cancels
+  perform public.change_booking_dates(bid, current_date + 110, current_date + 111);
+  r := public.cancel_booking(bid);
+  assert (r->>'refund_due')::numeric = 3800, format('cancel refund %s', r);
+  assert (select refund_due from public.bookings where id = bid) = 7600, 'total refund must equal what was paid';
+end $$;
+
+-- Housekeeping sees rooms, not guests or payments
+select set_config('request.jwt.claims', '{"sub":"77777777-7777-7777-7777-777777777777"}', false);
+do $$ begin
+  assert (select count(*) from public.bookings) = 0, 'housekeeping must not see bookings';
+  assert (select count(*) from public.payments) = 0, 'housekeeping must not see payments';
+  assert (select count(*) from public.profiles where role = 'guest') = 0, 'housekeeping must not see guest profiles';
+  assert (select count(*) from public.rooms) > 0, 'housekeeping needs the rooms';
+end $$;
+
+-- A manager can't make themselves admin through the table API
+select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
+do $$ begin
+  begin update public.profiles set role = 'admin' where id = auth.uid(); raise exception 'x';
+  exception when others then assert sqlerrm like 'You can''t change your own role%', sqlerrm; end;
+  begin update public.profiles set role = 'admin' where id = '22222222-2222-2222-2222-222222222222'; raise exception 'x';
+  exception when others then assert sqlerrm like 'Only an admin%', sqlerrm; end;
+  -- invites wait for a confirmed email
+  perform public.set_staff_role('late.confirm@example.com', 'front_desk');
+  perform public.set_staff_role('unconfirmed@example.com', 'front_desk');
+  assert exists (select 1 from public.list_staff() where email = 'unconfirmed@example.com' and status = 'invited'), 'unconfirmed account should get an invite, not the role';
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  ('88888888-8888-8888-8888-888888888888', 'late.confirm@example.com', '{}', null);
+do $$ begin
+  assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'guest', 'unconfirmed sign-up must stay a guest';
+  update auth.users set email_confirmed_at = now() where id = '88888888-8888-8888-8888-888888888888';
+  assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'front_desk', 'role applies on confirmation';
+  assert not exists (select 1 from public.staff_invites where email = 'late.confirm@example.com');
+  update auth.users set email_confirmed_at = now() where id = '66666666-6666-6666-6666-666666666666';
+  assert (select role from public.profiles where id = '66666666-6666-6666-6666-666666666666') = 'front_desk';
+  raise notice 'PASS 20 pay at hotel and QA fixes';
+end $$;
 
 \echo 'All booking tests passed.'

@@ -15,9 +15,10 @@ import '../widgets.dart';
 import 'receipt_screen.dart';
 
 class BookingScreen extends StatefulWidget {
-  const BookingScreen({super.key, required this.bookingId, this.paymentError});
+  const BookingScreen({super.key, required this.bookingId, this.paymentError, this.justBooked = false});
   final String bookingId;
   final String? paymentError;
+  final bool justBooked;
 
   @override
   State<BookingScreen> createState() => _BookingScreenState();
@@ -37,6 +38,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     _error = widget.paymentError == null
         ? null
         : tr("Payment couldn't start: ${widget.paymentError}", 'Hindi nasimulan ang pagbayad: ${widget.paymentError}');
+    if (widget.justBooked) _notice = tr('Booking confirmed. Your room is saved.', 'Kumpirmado ang booking. Nakalaan na ang kuwarto mo.');
     _load();
   }
 
@@ -93,6 +95,22 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
       setState(() => _error = errorText(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _payAtHotel() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await db.rpc('choose_pay_at_hotel', params: {'p_booking_id': widget.bookingId});
+      _notice = tr('Booking confirmed. Your room is saved.', 'Kumpirmado ang booking. Nakalaan na ang kuwarto mo.');
+      await _load();
+    } catch (e) {
+      if (mounted) setState(() => _error = errorText(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -324,20 +342,30 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
             const SizedBox(height: 8),
             if (_error != null) Note(_error!, color: Palette.bad),
             if (_notice != null) Note(_notice!, color: Palette.good),
+            if (b['payment_option'] == 'pay_at_hotel' && balance > 0 && (status == 'confirmed' || status == 'checked_in'))
+              Note(tr('Pay ${money(balance)} at the front desk when you arrive. Cash, card, GCash and Maya are accepted.',
+                  'Bayaran ang ${money(balance)} sa front desk pagdating mo. Tumatanggap ng cash, card, GCash at Maya.')),
             if (holdActive) ...[
               Card(
                 color: Palette.sun.withValues(alpha: 0.10),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Text(tr('Your room is held until ${niceTime(holdEnds!)}. Pay before then to confirm it.',
-                        'Hawak ang kuwarto mo hanggang ${niceTime(holdEnds!)}. Magbayad bago noon para makumpirma.')),
+                    Text(tr('Your room is held until ${niceTime(holdEnds!)}. Confirm it before then.',
+                        'Hawak ang kuwarto mo hanggang ${niceTime(holdEnds!)}. Kumpirmahin ito bago noon.')),
                     const SizedBox(height: 12),
-                    FilledButton(
-                        onPressed: _busy ? null : _pay,
-                        child: Text(_busy
-                            ? tr('Opening checkout…', 'Binubuksan ang checkout…')
-                            : tr('Pay ${money(b['total'])}', 'Magbayad ng ${money(b['total'])}'))),
+                    if (plan?['refundable'] == true)
+                      FilledButton(
+                          onPressed: _busy ? null : _payAtHotel,
+                          child: Text(tr('Pay at the hotel instead', 'Magbayad na lang sa hotel'))),
+                    if (onlinePayments) ...[
+                      const SizedBox(height: 8),
+                      FilledButton(
+                          onPressed: _busy ? null : _pay,
+                          child: Text(_busy
+                              ? tr('Opening checkout…', 'Binubuksan ang checkout…')
+                              : tr('Pay ${money(b['total'])}', 'Magbayad ng ${money(b['total'])}'))),
+                    ],
                   ]),
                 ),
               ),

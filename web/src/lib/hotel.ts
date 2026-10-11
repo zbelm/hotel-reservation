@@ -246,3 +246,7 @@ export const mapEmbedUrl = (() => {
   const bbox = [HOTEL.lng - d * 1.6, HOTEL.lat - d, HOTEL.lng + d * 1.6, HOTEL.lat + d].join(",");
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${HOTEL.lat},${HOTEL.lng}`;
 })();
+
+// Turn on in Vercel with NEXT_PUBLIC_ONLINE_PAYMENTS=1 once PayMongo keys are set in Supabase.
+// Until then guests pay at the hotel (Flexible rates only).
+export const ONLINE_PAYMENTS = process.env.NEXT_PUBLIC_ONLINE_PAYMENTS === "1";

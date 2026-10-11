@@ -9,7 +9,7 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
 | `mobile/` | Guest app for Android and iPhone (Flutter) | Your phone |
 
 **What works now:**
-- **Guests (web and app):** room search with live availability and a date picker that shows the lowest nightly price and full nights, room rates, booking with a 15-minute hold, payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards), automatic confirmation, my bookings with a QR code, changing dates online (flexible rates, up to 48 hours before check-in), uploading an ID before arrival, a printable receipt, cancellation with the refund rule applied, reviews from guests who stayed, and English or Filipino.
+- **Guests (web and app):** room search with live availability and a date picker that shows the lowest nightly price and full nights, room rates, booking with a 15-minute hold, paying cash (or card, GCash, Maya) at the hotel on Flexible rates, optional online payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards) with automatic confirmation, my bookings with a QR code, changing dates online (flexible rates, up to 48 hours before check-in), uploading an ID before arrival, a printable receipt, cancellation with the refund rule applied, reviews from guests who stayed, and English or Filipino.
 - **Staff (web):** a staff portal with its own sidebar and counts of what needs doing; today's arrivals, departures and in-house guests with check-in and check-out buttons, a two-week room calendar, team management by email, a dashboard with occupancy and revenue charts, room board, walk-in bookings, check-in with room assignment, ID check, date changes, desk payments, check-out with a housekeeping task, and review moderation (managers).
 
 **Booking rules** (all enforced in the database, so the web and mobile apps can't get around them):
@@ -35,7 +35,8 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    7. `supabase/migrations/20261008000007_guest_features.sql` (calendar prices, reviews, date changes, ID upload, staff dashboard)
    8. `supabase/migrations/20261008000008_guest_id_storage.sql` (private storage for guest IDs)
    9. `supabase/migrations/20261008000009_staff_accounts.sql` (adding staff from the Team page)
-   10. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   10. `supabase/migrations/20261011000010_pay_at_hotel_and_fixes.sql` (pay at the hotel, plus security and refund fixes)
+   11. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -65,7 +66,12 @@ where id = (select id from auth.users where email = 'you@example.com');
    ```
 4. **Review → Save policy**.
 
-### 2. PayMongo: online payments
+### 2. Payments
+
+**Pay at the hotel** works with no setup. On Flexible rates guests choose "Pay at the hotel", the booking is confirmed straight away, and the front desk records the cash, card, GCash or Maya payment on the booking page when they arrive. Non-refundable rates need online payment. Each guest can have at most 3 unpaid pay-at-hotel bookings, and unpaid confirmed bookings become no-shows at check-out time the day after arrival.
+
+**Online payment (optional): PayMongo.** Once the steps below are done, add `NEXT_PUBLIC_ONLINE_PAYMENTS=1` in Vercel (and build the app with `--dart-define=ONLINE_PAYMENTS=true`) so guests also see "Pay online now".
+
 
 1. Sign up at [paymongo.com](https://www.paymongo.com). No setup or monthly fee; you pay a percentage per successful payment. Use **test keys** (`sk_test_...`) until you're ready to go live.
 2. Install the [Supabase CLI](https://supabase.com/docs/guides/cli), then from this folder:
@@ -128,7 +134,7 @@ Publishing costs US$25 once for Google Play and US$99 a year for the Apple App S
 
 ## Tests
 
-The booking rules have 25 database tests (holds, sold-out, payments, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
+The booking rules have 20 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
 
 ```bash
 PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh
