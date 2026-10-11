@@ -17,7 +17,6 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const STAFF_ROLES = ["front_desk", "housekeeping", "manager", "admin"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -59,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     profileLoading: Boolean(session && profileFor !== session.user.id),
-    isStaff: Boolean(profile && STAFF_ROLES.includes(profile.role)),
+    isStaff: profile?.role === "admin",
     refreshProfile: () => loadProfile(session),
   };
 

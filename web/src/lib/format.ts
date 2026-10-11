@@ -36,9 +36,8 @@ export function niceTime(ts: string): string {
 }
 
 export const bookingStatusLabel: Record<BookingStatus, string> = {
-  held: "Awaiting payment",
+  held: "On hold",
   confirmed: "Confirmed",
-  checked_in: "Checked in",
   checked_out: "Completed",
   cancelled: "Cancelled",
   no_show: "No-show",

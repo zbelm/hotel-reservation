@@ -91,7 +91,6 @@ class StatusChip extends StatelessWidget {
     final color = switch (status) {
       'held' => tones(context).sun,
       'confirmed' => tones(context).good,
-      'checked_in' => tones(context).sea,
       'cancelled' || 'no_show' => tones(context).bad,
       _ => tones(context).muted,
     };

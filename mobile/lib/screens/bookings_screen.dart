@@ -71,7 +71,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             }
             final today = isoDate(todayManila());
             final upcoming = rows
-                .where((b) => (b['check_out'] as String).compareTo(today) >= 0 && const ['held', 'confirmed', 'checked_in'].contains(b['status']))
+                .where((b) => (b['check_out'] as String).compareTo(today) >= 0 && const ['held', 'confirmed'].contains(b['status']))
                 .toList()
               ..sort((a, b) => (a['check_in'] as String).compareTo(b['check_in'] as String));
             final past = rows.where((b) => !upcoming.contains(b)).toList();

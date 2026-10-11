@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 SupabaseClient get db => Supabase.instance.client;
 
 const bookingSelect =
-    '*, booking_rooms(id, room_type_id, room_id, nightly_prices, room_types(name), rate_plans(name, refundable, free_cancel_hours, includes_breakfast), rooms(number))';
+    '*, booking_rooms(id, room_type_id, nightly_prices, room_types(name), rate_plans(name, refundable, free_cancel_hours, includes_breakfast))';
 
 /// Turns any Supabase error into a sentence a guest can read.
 String errorText(Object e) {

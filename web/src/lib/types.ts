@@ -1,4 +1,5 @@
-export type Role = "guest" | "front_desk" | "housekeeping" | "manager" | "admin";
+// Guests book; admins run the staff portal. There is one staff role.
+export type Role = "guest" | "admin";
 
 export type Profile = {
   id: string;
@@ -52,7 +53,7 @@ export type Offer = {
 };
 
 export type BookingStatus =
-  | "held" | "confirmed" | "checked_in" | "checked_out" | "cancelled" | "no_show" | "expired";
+  | "held" | "confirmed" | "checked_out" | "cancelled" | "no_show" | "expired"; // checked_out = stay completed
 
 export type Booking = {
   id: string;
@@ -76,18 +77,13 @@ export type Booking = {
   arrival_time: string | null;
   policies_accepted_at: string | null;
   payment_option?: "online" | "pay_at_hotel" | "front_desk";
-  id_document_path?: string | null;
-  id_uploaded_at?: string | null;
-  id_verified_at?: string | null;
   created_at: string;
   booking_rooms?: {
     id: string;
     room_type_id: string;
-    room_id: string | null;
     nightly_prices: { date: string; price: number }[];
     room_types: { name: string } | null;
     rate_plans: { name: string; refundable: boolean; free_cancel_hours: number; includes_breakfast: boolean } | null;
-    rooms: { number: string } | null;
   }[];
 };
 
@@ -103,7 +99,7 @@ export type Room = {
 };
 
 export const BOOKING_SELECT =
-  "*, booking_rooms(id, room_type_id, room_id, nightly_prices, room_types(name), rate_plans(name, refundable, free_cancel_hours, includes_breakfast), rooms(number))";
+  "*, booking_rooms(id, room_type_id, nightly_prices, room_types(name), rate_plans(name, refundable, free_cancel_hours, includes_breakfast))";
 
 export type Review = {
   id: string;

@@ -2,14 +2,13 @@
 \set ON_ERROR_STOP on
 \set QUIET on
 
--- Test users: two guests, a front desk clerk, a manager
+-- Test users: two guests and two admins
 insert into auth.users (id, email, raw_user_meta_data) values
   ('11111111-1111-1111-1111-111111111111', 'ana@example.com',  '{"full_name":"Ana Cruz"}'),
   ('22222222-2222-2222-2222-222222222222', 'ben@example.com',  '{"full_name":"Ben Reyes"}'),
   ('33333333-3333-3333-3333-333333333333', 'desk@example.com', '{"full_name":"Front Desk"}'),
   ('44444444-4444-4444-4444-444444444444', 'boss@example.com', '{"full_name":"Manager"}');
-update public.profiles set role = 'front_desk' where id = '33333333-3333-3333-3333-333333333333';
-update public.profiles set role = 'manager'    where id = '44444444-4444-4444-4444-444444444444';
+update public.profiles set role = 'admin' where id in ('33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444');
 
 create temp table t (k text primary key, v text);
 grant all on t to anon, authenticated, service_role;
@@ -111,9 +110,9 @@ end $$;
 -- 6. Guests cannot promote themselves or touch payments
 do $$ begin
   begin
-    update public.profiles set role = 'manager' where id = '11111111-1111-1111-1111-111111111111';
+    update public.profiles set role = 'admin' where id = '11111111-1111-1111-1111-111111111111';
     raise exception 'x';
-  exception when others then assert sqlerrm = 'Only a manager can change roles', sqlerrm; end;
+  exception when others then assert sqlerrm = 'Only an admin can change roles', sqlerrm; end;
   begin
     perform public.confirm_payment('anything', 1);
     raise exception 'x';
@@ -272,59 +271,51 @@ do $$ declare total numeric; begin
   raise notice 'PASS 10 holiday price override';
 end $$;
 
--- 11. Front desk: walk-in, check-in, desk payment, check-out, housekeeping
+-- 11. Admin: walk-in booking, payment at the desk, room status
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
 do $$ declare b json; r json; v_today date := (now() at time zone 'Asia/Manila')::date; begin
-  assert (select count(*) from public.bookings) >= 4, 'front desk should see all bookings';
+  assert (select count(*) from public.bookings) >= 4, 'admins should see all bookings';
   b := public.create_booking('00000000-0000-0000-0000-0000000000a2',
         (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a2' and name = 'Flexible'),
         v_today, v_today + 2, 2, 0, 'Walk In Guest', 'walkin@example.com', null, null, 'front_desk');
   assert b->>'status' = 'confirmed', 'walk-ins are confirmed at once';
   insert into t values ('walkin', b->>'id');
-  r := public.check_in_booking((b->>'id')::uuid);
-  assert r->>'room_number' = '301', format('expected room 301, got %s', r);
-  assert (select status from public.rooms where number = '301') = 'occupied';
   r := public.record_desk_payment((b->>'id')::uuid, 7600, 'cash');
   assert (r->>'balance')::numeric = 0, format('balance should be 0, got %s', r);
-  begin
-    perform public.set_room_status((select id from public.rooms where number = '301'), 'vacant_clean');
-    raise exception 'x';
-  exception when others then assert sqlerrm like 'Room 301 is occupied%', sqlerrm; end;
-  r := public.check_out_booking((b->>'id')::uuid);
-  assert (select status from public.rooms where number = '301') = 'dirty';
-  assert (select count(*) from public.housekeeping_tasks where status = 'pending') = 1;
+  perform public.set_room_status((select id from public.rooms where number = '301'), 'out_of_order');
+  assert (select status from public.rooms where number = '301') = 'out_of_order';
   perform public.set_room_status((select id from public.rooms where number = '301'), 'vacant_clean');
-  assert (select status from public.housekeeping_tasks limit 1) = 'done';
-  raise notice 'PASS 11 walk-in, check-in, desk payment, check-out, housekeeping';
+  raise notice 'PASS 11 walk-in, desk payment, room status';
 end $$;
 reset role;
 
--- Guests cannot use front desk functions or see rooms
+-- 12. Guests cannot use admin functions or see rooms
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
 do $$ begin
-  begin perform public.check_in_booking((select v::uuid from t where k = 'suite1')); raise exception 'x';
+  begin perform public.mark_no_show((select v::uuid from t where k = 'suite1')); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only admins%', sqlerrm; end;
+  begin perform public.record_desk_payment((select v::uuid from t where k = 'suite1'), 10); raise exception 'x';
   exception when others then assert sqlerrm like 'Only front desk staff%', sqlerrm; end;
   assert (select count(*) from public.rooms) = 0, 'guests must not see room list';
-  raise notice 'PASS 12 guests locked out of staff actions';
+  raise notice 'PASS 12 guests locked out of admin actions';
 end $$;
 reset role;
 
--- 13. Cleanup job expires holds and marks no-shows
+-- 13. Cleanup job: expires holds; stays whose check-out time has passed are completed
 update public.bookings set hold_expires_at = now() - interval '1 second' where status = 'held';
 insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total)
-values ('HRNOSHOW1', '00000000-0000-0000-0000-000000000001', 'Late', 'late@example.com',
-        (now() at time zone 'Asia/Manila')::date - 2, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100);
--- Arriving after midnight: yesterday's booking is not a no-show before today's check-out time
-insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total)
-values ('HRLATE0001', '00000000-0000-0000-0000-000000000001', 'After midnight', 'night@example.com',
+values ('HRDONE0001', '00000000-0000-0000-0000-000000000001', 'Stayed', 'stayed@example.com',
+        (now() at time zone 'Asia/Manila')::date - 3, (now() at time zone 'Asia/Manila')::date - 1, 'confirmed', 100),
+       ('HRLATE0001', '00000000-0000-0000-0000-000000000001', 'Arriving tonight', 'night@example.com',
         (now() at time zone 'Asia/Manila')::date, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100);
 set role service_role;
 do $$ declare r json; begin
   r := public.expire_holds_and_no_shows();
-  assert (r->>'expired')::int >= 1 and (r->>'no_show')::int = 1, format('unexpected cleanup result %s', r);
-  assert (select status from public.bookings where code = 'HRLATE0001') = 'confirmed', 'tonight''s arrival must not be a no-show';
+  assert (r->>'expired')::int >= 1 and (r->>'completed')::int = 1, format('unexpected cleanup result %s', r);
+  assert (select status from public.bookings where code = 'HRDONE0001') = 'checked_out', 'past stay should be completed';
+  assert (select status from public.bookings where code = 'HRLATE0001') = 'confirmed', 'tonight''s arrival stays confirmed';
   raise notice 'PASS 13 cleanup job';
 end $$;
 reset role;
@@ -395,32 +386,25 @@ do $$ begin
 end $$;
 reset role;
 
--- 16. ID upload record: own booking folder only; front desk verifies and clears the file path
+-- 16. No-shows: an admin marks a guest who never arrived, from the arrival day on
 set role authenticated;
-select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
-do $$ declare bid uuid := (select v::uuid from t where k = 'flex'); begin
-  begin perform public.record_id_upload(bid, 'someone-else/id.jpg'); raise exception 'x';
-  exception when others then assert sqlerrm like 'Upload the ID into this booking%', sqlerrm; end;
-  perform public.record_id_upload(bid, bid::text || '/passport.jpg');
-  assert (select id_uploaded_at from public.bookings b where b.id = bid) is not null;
-  begin perform public.verify_guest_id(bid); raise exception 'x';
-  exception when others then assert sqlerrm like 'Only front desk%', sqlerrm; end;
-end $$;
 select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
-do $$ declare bid uuid := (select v::uuid from t where k = 'flex'); begin
-  perform public.verify_guest_id(bid);
-  assert (select id_document_path is null and id_verified_at is not null from public.bookings b where b.id = bid);
-  raise notice 'PASS 16 ID upload and front desk check';
+do $$ begin
+  begin perform public.mark_no_show((select v::uuid from t where k = 'flex')); raise exception 'x';
+  exception when others then assert sqlerrm like 'The guest isn''t due until%', sqlerrm; end;
+  perform public.mark_no_show((select id from public.bookings where code = 'HRLATE0001'));
+  assert (select status from public.bookings where code = 'HRLATE0001') = 'no_show';
+  raise notice 'PASS 16 admin marks a no-show';
 end $$;
 reset role;
 
--- 17. Reviews: only after checking out, once, shown with a short name
+-- 17. Reviews: only after the stay, once, shown with a short name
 update public.bookings set status = 'checked_out' where id = (select v::uuid from t where k = 'flex');
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
 do $$ begin
   begin perform public.submit_review((select v::uuid from t where k = 'nonref'), 5, 'Not yet'); raise exception 'x';
-  exception when others then assert sqlerrm like 'You can review your stay after you check out%', sqlerrm; end;
+  exception when others then assert sqlerrm like 'You can review your stay once it has ended%', sqlerrm; end;
   perform public.submit_review((select v::uuid from t where k = 'flex'), 5, 'Lovely sunset from the room.');
   begin perform public.submit_review((select v::uuid from t where k = 'flex'), 4, 'Again'); raise exception 'x';
   exception when others then assert sqlerrm like 'You already reviewed%', sqlerrm; end;
@@ -439,7 +423,7 @@ do $$ begin
 end $$;
 reset role;
 
--- 18. Dashboard is for managers and front desk only
+-- 18. Dashboard is for admins only
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
 do $$ begin
@@ -457,41 +441,41 @@ do $$ declare d json; begin
 end $$;
 reset role;
 
--- 19. Staff accounts: managers add staff by email; invites apply on first sign-in
+-- 19. Staff accounts: admins add admins by email; invites apply once the email is confirmed
 set role authenticated;
-select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
 do $$ begin
-  begin perform public.set_staff_role('ben@example.com', 'front_desk'); raise exception 'x';
-  exception when others then assert sqlerrm like 'Only managers can add%', sqlerrm; end;
+  begin perform public.set_staff_role('ben@example.com', 'admin'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Only admins can add%', sqlerrm; end;
   begin perform * from public.list_staff(); raise exception 'x';
-  exception when others then assert sqlerrm like 'Only managers can see%', sqlerrm; end;
+  exception when others then assert sqlerrm like 'Only admins can see%', sqlerrm; end;
 end $$;
 select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
 do $$ declare r json; n int; begin
-  -- existing account: role changes now
-  r := public.set_staff_role('  Ben@Example.com ', 'housekeeping');
+  -- existing account: access changes now
+  r := public.set_staff_role('  Ben@Example.com ', 'admin');
   assert r->>'status' = 'updated', format('expected updated %s', r);
-  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'housekeeping';
+  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'admin';
   -- no account yet: saved as an invite
-  r := public.set_staff_role('new.clerk@example.com', 'front_desk', 'Nina Santos');
+  r := public.set_staff_role('new.clerk@example.com', 'admin', 'Nina Santos');
   assert r->>'status' = 'invited', format('expected invited %s', r);
   select count(*) into n from public.list_staff() where status = 'invited' and email = 'new.clerk@example.com';
   assert n = 1, 'invite not listed';
   -- safety rules
   begin perform public.set_staff_role('boss@example.com', 'guest'); raise exception 'x';
-  exception when others then assert sqlerrm like 'You can''t change your own role%', sqlerrm; end;
-  begin perform public.set_staff_role('someone@example.com', 'admin'); raise exception 'x';
-  exception when others then assert sqlerrm like 'Only an admin%', sqlerrm; end;
-  begin perform public.set_staff_role('not-an-email', 'front_desk'); raise exception 'x';
+  exception when others then assert sqlerrm like 'You can''t change your own access%', sqlerrm; end;
+  begin perform public.set_staff_role('someone@example.com', 'manager'); raise exception 'x';
+  exception when others then assert sqlerrm like 'Unknown role%', sqlerrm; end;
+  begin perform public.set_staff_role('not-an-email', 'admin'); raise exception 'x';
   exception when others then assert sqlerrm like 'Enter a valid email%', sqlerrm; end;
-  -- guests can't read the invite table directly
 end $$;
 reset role;
--- the invited clerk signs in for the first time and gets the role
+select set_config('request.jwt.claims', '', false);
+-- the invited person confirms their email and gets access
 insert into auth.users (id, email, raw_user_meta_data) values
   ('55555555-5555-5555-5555-555555555555', 'New.Clerk@example.com', '{}');
 do $$ begin
-  assert (select role from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'front_desk', 'invite role not applied';
+  assert (select role from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'admin', 'invite role not applied';
   assert (select full_name from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'Nina Santos', 'invite name not applied';
   assert not exists (select 1 from public.staff_invites where email = 'new.clerk@example.com'), 'invite not cleared';
 end $$;
@@ -510,12 +494,10 @@ do $$ begin
 end $$;
 reset role;
 
--- 20. Pay at the hotel, and the QA fixes (refunds, walk-ins, invites, roles, holds, privacy, desk payments)
+-- 20. Pay at the hotel, and the QA fixes (refunds, walk-ins, invites, roles, holds, desk payments)
 select set_config('request.jwt.claims', '', false);
 insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
-  ('66666666-6666-6666-6666-666666666666', 'unconfirmed@example.com', '{}', null),
-  ('77777777-7777-7777-7777-777777777777', 'hk@example.com', '{"full_name":"Housekeeper"}', now());
-update public.profiles set role = 'housekeeping' where id = '77777777-7777-7777-7777-777777777777';
+  ('66666666-6666-6666-6666-666666666666', 'unconfirmed@example.com', '{}', null);
 
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
@@ -612,25 +594,22 @@ do $$ declare r json; bid uuid := (select v::uuid from t where k = 'refund'); be
   assert (select refund_due from public.bookings where id = bid) = 7600, 'total refund must equal what was paid';
 end $$;
 
--- Housekeeping sees rooms, not guests or payments
-select set_config('request.jwt.claims', '{"sub":"77777777-7777-7777-7777-777777777777"}', false);
-do $$ begin
-  assert (select count(*) from public.bookings) = 0, 'housekeeping must not see bookings';
-  assert (select count(*) from public.payments) = 0, 'housekeeping must not see payments';
-  assert (select count(*) from public.profiles where role = 'guest') = 0, 'housekeeping must not see guest profiles';
-  assert (select count(*) from public.rooms) > 0, 'housekeeping needs the rooms';
-end $$;
-
--- A manager can't make themselves admin through the table API
+-- An admin can't change their own role through the table API; a guest can't change anyone's
 select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
 do $$ begin
-  begin update public.profiles set role = 'admin' where id = auth.uid(); raise exception 'x';
+  begin update public.profiles set role = 'guest' where id = auth.uid(); raise exception 'x';
   exception when others then assert sqlerrm like 'You can''t change your own role%', sqlerrm; end;
-  begin update public.profiles set role = 'admin' where id = '22222222-2222-2222-2222-222222222222'; raise exception 'x';
+end $$;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ begin
+  begin update public.profiles set role = 'admin' where id = auth.uid(); raise exception 'x';
   exception when others then assert sqlerrm like 'Only an admin%', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
+do $$ begin
   -- invites wait for a confirmed email
-  perform public.set_staff_role('late.confirm@example.com', 'front_desk');
-  perform public.set_staff_role('unconfirmed@example.com', 'front_desk');
+  perform public.set_staff_role('late.confirm@example.com', 'admin');
+  perform public.set_staff_role('unconfirmed@example.com', 'admin');
   assert exists (select 1 from public.list_staff() where email = 'unconfirmed@example.com' and status = 'invited'), 'unconfirmed account should get an invite, not the role';
 end $$;
 reset role;
@@ -640,10 +619,10 @@ insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) value
 do $$ begin
   assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'guest', 'unconfirmed sign-up must stay a guest';
   update auth.users set email_confirmed_at = now() where id = '88888888-8888-8888-8888-888888888888';
-  assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'front_desk', 'role applies on confirmation';
+  assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'admin', 'role applies on confirmation';
   assert not exists (select 1 from public.staff_invites where email = 'late.confirm@example.com');
   update auth.users set email_confirmed_at = now() where id = '66666666-6666-6666-6666-666666666666';
-  assert (select role from public.profiles where id = '66666666-6666-6666-6666-666666666666') = 'front_desk';
+  assert (select role from public.profiles where id = '66666666-6666-6666-6666-666666666666') = 'admin';
   raise notice 'PASS 20 pay at hotel and QA fixes';
 end $$;
 

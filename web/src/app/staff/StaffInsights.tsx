@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Notice, Spinner } from "@/components/ui";
 import { Stars } from "@/components/Reviews";
 import { supabase } from "@/lib/supabase";
-import { addDays, money, niceDate, nightsBetween } from "@/lib/format";
+import { addDays, money, niceDate, nightsBetween, plural } from "@/lib/format";
 import { useToday } from "@/lib/useToday";
 import { BOOKING_SELECT, type Booking, type Review } from "@/lib/types";
 
@@ -243,15 +243,14 @@ function SourceBars({ by }: { by: Summary["by_source"] }) {
 }
 
 // ===========================================================================
-// Room calendar: every room across two weeks, with each stay as a bar
+// Calendar: each room type across two weeks, with each stay as a bar
 // ===========================================================================
 type CalRoom = { id: string; number: string; floor: number | null; room_type_id: string; room_types: { name: string } | null };
 const SPAN = 14;
 const STATUS_STYLE: Record<string, { bar: string; label: string }> = {
   held: { bar: "bg-mango text-[#13303b]", label: "On hold" },
   confirmed: { bar: "bg-sea text-white", label: "Confirmed" },
-  checked_in: { bar: "bg-bay text-on-bay ring-1 ring-on-bay/20", label: "In house" },
-  checked_out: { bar: "bg-line text-muted", label: "Checked out" },
+  checked_out: { bar: "bg-line text-muted", label: "Completed" },
 };
 
 export function CalendarTab() {
@@ -269,7 +268,7 @@ export function CalendarTab() {
     Promise.all([
       sb.from("rooms").select("id, number, floor, room_type_id, room_types(name)").order("number"),
       sb.from("bookings").select(BOOKING_SELECT).lt("check_in", to).gt("check_out", from)
-        .in("status", ["held", "confirmed", "checked_in", "checked_out"]),
+        .in("status", ["held", "confirmed", "checked_out"]),
     ]).then(([r, b]) => {
       if (!active) return;
       if (r.error || b.error) return setData({ key, error: (r.error ?? b.error)!.message });
@@ -283,7 +282,7 @@ export function CalendarTab() {
   const current = data?.key === key ? data : null;
   const dates = from ? [...Array(SPAN)].map((_, i) => addDays(from, i)) : [];
 
-  // Group rooms by type, then add "not yet assigned" lanes for bookings without a room
+  // One block per room type; its bookings packed into as few lanes as possible
   const groups = useMemo(() => {
     if (!current?.rooms || !current.bookings) return [];
     const types = new Map<string, { name: string; rooms: CalRoom[] }>();
@@ -293,20 +292,17 @@ export function CalendarTab() {
       types.set(r.room_type_id, g);
     }
     return [...types.entries()].map(([typeId, g]) => {
-      const rows = g.rooms.map((room) => ({
-        label: `Room ${room.number}`,
-        bookings: current.bookings!.filter((b) => b.booking_rooms?.[0]?.room_id === room.id),
-      }));
-      const loose = current.bookings!
-        .filter((b) => b.booking_rooms?.[0]?.room_type_id === typeId && !b.booking_rooms?.[0]?.room_id)
+      const stays = current.bookings!
+        .filter((b) => b.booking_rooms?.[0]?.room_type_id === typeId)
         .sort((a, b) => a.check_in.localeCompare(b.check_in));
       const lanes: Booking[][] = [];
-      for (const b of loose) {
+      for (const b of stays) {
         const lane = lanes.find((l) => l[l.length - 1].check_out <= b.check_in);
         if (lane) lane.push(b);
         else lanes.push([b]);
       }
-      lanes.forEach((l, i) => rows.push({ label: i === 0 ? "Not yet assigned" : "", bookings: l }));
+      if (lanes.length === 0) lanes.push([]);
+      const rows = lanes.map((l, i) => ({ label: i === 0 ? plural(g.rooms.length, "room") : "", bookings: l }));
       return { name: g.name, rows };
     });
   }, [current]);
@@ -377,7 +373,7 @@ export function CalendarTab() {
 }
 
 // ===========================================================================
-// Reviews: managers can hide a review (for example abuse or personal details)
+// Reviews: admins can hide a review (for example abuse or personal details)
 // ===========================================================================
 export function ReviewsTab({ canModerate }: { canModerate: boolean }) {
   const [list, setList] = useState<Review[] | null>(null);

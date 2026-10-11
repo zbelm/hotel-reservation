@@ -24,7 +24,6 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "error" | 
 const bookingTone: Record<BookingStatus, string> = {
   held: "bg-sun-tint text-sun",
   confirmed: "bg-good-tint text-good",
-  checked_in: "bg-sea-tint text-sea",
   checked_out: "bg-line/60 text-muted",
   cancelled: "bg-bad-tint text-bad",
   no_show: "bg-bad-tint text-bad",

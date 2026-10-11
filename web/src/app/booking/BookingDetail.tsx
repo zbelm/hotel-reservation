@@ -135,7 +135,6 @@ export function BookingDetail() {
             <dt className="text-muted">{t.booking.guest}</dt><dd className="text-right">{b.guest_name}</dd>
             {arriving && (<><dt className="text-muted">{t.booking.arriving}</dt><dd className="text-right">{arriving}</dd></>)}
             {b.special_requests && (<><dt className="text-muted">{t.booking.requests}</dt><dd className="text-right">{b.special_requests}</dd></>)}
-            {br?.rooms?.number && (<><dt className="text-muted">{t.booking.room}</dt><dd className="text-right">{br.rooms.number}</dd></>)}
             {b.status !== "held" && b.payment_option && (<><dt className="text-muted">{t.booking.payment}</dt><dd className="text-right">{b.payment_option === "pay_at_hotel" ? t.booking.atHotel : b.payment_option === "front_desk" ? t.booking.atDesk : t.booking.online}</dd></>)}
             {plan && (<><dt className="text-muted">{t.booking.cancellation}</dt><dd className="text-right">{plan.refundable ? t.booking.freeUntil(plan.free_cancel_hours) : t.booking.nonRefundable}</dd></>)}
           </dl>
@@ -171,7 +170,6 @@ export function BookingDetail() {
         <ChangeDates booking={b} refundable={plan.refundable} onChanged={(msg) => { setNotice(msg); load(); }} />
       )}
 
-      {upcoming && <IdUpload booking={b} onChanged={load} />}
 
       {upcoming && (
         <section className="mt-8 rounded-2xl bg-sea-tint p-6">
@@ -277,61 +275,6 @@ function ChangeDates({ booking, refundable, onChanged }: { booking: Booking; ref
         )}
         <button className="btn-quiet" onClick={() => { setOpen(false); setQuote(null); setError(""); }}>{t.changeDates.close}</button>
       </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-const ID_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
-
-function IdUpload({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
-  const { t } = useT();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function upload(file: File) {
-    setError("");
-    if (file.size > 5 * 1024 * 1024) return setError(t.idUpload.tooBig);
-    if (!ID_TYPES.includes(file.type)) return setError(t.idUpload.wrongType);
-    setBusy(true);
-    const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `${booking.id}/id-${Date.now()}.${ext}`;
-    const sb = supabase();
-    const { error: upErr } = await sb.storage.from("guest-ids").upload(path, file, { contentType: file.type });
-    if (upErr) {
-      setBusy(false);
-      return setError(upErr.message);
-    }
-    const { error: recErr } = await sb.rpc("record_id_upload", { p_booking_id: booking.id, p_path: path });
-    if (!recErr && booking.id_document_path) {
-      await sb.storage.from("guest-ids").remove([booking.id_document_path]); // replace the earlier photo
-    }
-    setBusy(false);
-    if (recErr) return setError(recErr.message);
-    onChanged();
-  }
-
-  const uploadedAt = booking.id_uploaded_at
-    ? new Date(booking.id_uploaded_at).toLocaleString(t.locale, { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "";
-
-  return (
-    <section className="card mt-8 p-6">
-      <h2 className="text-xl font-semibold">{t.idUpload.title}</h2>
-      {booking.id_verified_at ? (
-        <p className="mt-2 text-good">{t.idUpload.verified}</p>
-      ) : (
-        <>
-          <p className="mt-2 max-w-2xl text-muted">{booking.id_uploaded_at ? t.idUpload.received(uploadedAt) : t.idUpload.body}</p>
-          <label className={`btn-quiet mt-4 cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
-            {busy ? t.idUpload.uploading : booking.id_uploaded_at ? t.idUpload.replace : t.idUpload.choose}
-            <input type="file" accept={ID_TYPES.join(",")} capture="environment" className="sr-only" disabled={busy}
-              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) upload(f); }} />
-          </label>
-          <p className="mt-2 text-xs text-muted">{t.idUpload.privacy}</p>
-          {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
-        </>
-      )}
     </section>
   );
 }

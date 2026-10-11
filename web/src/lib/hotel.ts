@@ -67,7 +67,7 @@ const en: HotelContent = {
     },
     {
       title: "What to bring",
-      body: "A valid government-issued ID or passport for the person named on the booking. We may also ask to see the card or account used to pay. To check in faster, you can upload the ID before you arrive.",
+      body: "A valid government-issued ID or passport for the person named on the booking. We may also ask to see the card or account used to pay.",
     },
     {
       title: "Cancellation and changes",
@@ -102,10 +102,6 @@ const en: HotelContent = {
     {
       q: "Can I change my dates?",
       a: "Yes, on flexible rates. Open the booking in My stays and choose Change dates, up to 48 hours before check-in. You'll see the new price before you confirm. For non-refundable rates, call the front desk.",
-    },
-    {
-      q: "Can I send my ID before I arrive?",
-      a: "Yes. Open your booking in My stays and upload a photo of your ID. Only the front desk can see it, and it's deleted once they've checked it.",
     },
     {
       q: "Is breakfast included?",
@@ -168,7 +164,7 @@ const fil: HotelContent = {
     },
     {
       title: "Mga dapat dalhin",
-      body: "Valid na government ID o pasaporte ng taong nakapangalan sa booking. Maaari rin naming hingin na makita ang card o account na ipinambayad. Para mas mabilis ang check-in, puwede mong i-upload ang ID bago ka dumating.",
+      body: "Valid na government ID o pasaporte ng taong nakapangalan sa booking. Maaari rin naming hingin na makita ang card o account na ipinambayad.",
     },
     {
       title: "Pagkansela at pagpapalit",
@@ -203,10 +199,6 @@ const fil: HotelContent = {
     {
       q: "Puwede ko bang palitan ang mga petsa?",
       a: "Oo, kung flexible rate. Buksan ang booking sa My stays at piliin ang Palitan ang petsa, hanggang 48 oras bago ang check-in. Makikita mo muna ang bagong presyo bago mo kumpirmahin. Kung non-refundable rate, tumawag sa front desk.",
-    },
-    {
-      q: "Puwede ko bang ipadala ang ID ko bago dumating?",
-      a: "Oo. Buksan ang booking mo sa My stays at i-upload ang litrato ng ID mo. Ang front desk lang ang makakakita nito, at buburahin ito kapag na-check na nila.",
     },
     {
       q: "Kasama ba ang almusal?",

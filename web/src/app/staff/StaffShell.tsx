@@ -16,48 +16,35 @@ import type { Role } from "@/lib/types";
 
 export type TabKey = "today" | "calendar" | "find" | "walkin" | "rooms" | "dashboard" | "reviews" | "team";
 
-const FRONT: Role[] = ["front_desk", "manager", "admin"];
-const ALL: Role[] = ["front_desk", "housekeeping", "manager", "admin"];
-const MANAGERS: Role[] = ["manager", "admin"];
-
-export const NAV: { group: string; items: { key: TabKey; label: string; roles: Role[] }[] }[] = [
+// One staff role (admin) sees every section
+export const NAV: { group: string; items: { key: TabKey; label: string }[] }[] = [
   {
-    group: "Front desk",
+    group: "Reservations",
     items: [
-      { key: "today", label: "Today", roles: FRONT },
-      { key: "calendar", label: "Room calendar", roles: FRONT },
-      { key: "find", label: "Find a booking", roles: FRONT },
-      { key: "walkin", label: "New booking", roles: FRONT },
+      { key: "today", label: "Today" },
+      { key: "calendar", label: "Calendar" },
+      { key: "find", label: "Find a booking" },
+      { key: "walkin", label: "New booking" },
     ],
   },
-  { group: "Housekeeping", items: [{ key: "rooms", label: "Rooms", roles: ALL }] },
   {
-    group: "Reports",
+    group: "Hotel",
     items: [
-      { key: "dashboard", label: "Dashboard", roles: FRONT },
-      { key: "reviews", label: "Reviews", roles: FRONT },
+      { key: "rooms", label: "Rooms" },
+      { key: "dashboard", label: "Dashboard" },
+      { key: "reviews", label: "Reviews" },
+      { key: "team", label: "Team" },
     ],
   },
-  { group: "Manager", items: [{ key: "team", label: "Team", roles: MANAGERS }] },
 ];
 
-export const ROLE_LABEL: Record<Role, string> = {
-  guest: "Guest",
-  front_desk: "Front desk",
-  housekeeping: "Housekeeping",
-  manager: "Manager",
-  admin: "Admin",
-};
+export const ROLE_LABEL: Record<Role, string> = { guest: "Guest", admin: "Admin" };
 
-export function allowedTabs(role: Role | undefined): TabKey[] {
-  if (!role) return [];
-  return NAV.flatMap((g) => g.items.filter((i) => i.roles.includes(role)).map((i) => i.key));
-}
+const TABS: TabKey[] = NAV.flatMap((g) => g.items.map((i) => i.key));
 
-/** The section in the URL if this role may open it, otherwise the role's first section. */
-export function currentTab(role: Role | undefined, asked: string | null): TabKey | null {
-  const tabs = allowedTabs(role);
-  return tabs.includes(asked as TabKey) ? (asked as TabKey) : (tabs[0] ?? null);
+/** The section in the URL, or Today */
+export function currentTab(asked: string | null): TabKey {
+  return TABS.includes(asked as TabKey) ? (asked as TabKey) : "today";
 }
 
 type Counts = { arrivals: number; departures: number; dirty: number };
@@ -68,22 +55,21 @@ export function StaffShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const role = profile?.role;
   const onHome = pathname === "/staff";
-  const active = onHome ? currentTab(role, params.get("tab")) : null;
-  const counts = useCounts(isStaff ? `${pathname}?${params}` : null, role);
+  const active = onHome ? currentTab(params.get("tab")) : null;
+  const counts = useCounts(isStaff ? `${pathname}?${params}` : null);
 
   async function signOut() {
     await supabase().auth.signOut();
     router.push("/");
   }
 
-  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => role && i.roles.includes(role)) })).filter((g) => g.items.length);
+  const groups = NAV;
   const badge = (key: TabKey) =>
     key === "today" ? (counts ? counts.arrivals + counts.departures : 0) : key === "rooms" ? (counts?.dirty ?? 0) : 0;
   const badgeLabel = (key: TabKey) =>
     key === "today" && counts
-      ? `${counts.arrivals} to check in, ${counts.departures} to check out`
+      ? `${counts.arrivals} arriving, ${counts.departures} leaving today`
       : key === "rooms" && counts
         ? `${counts.dirty} to clean`
         : "";
@@ -127,7 +113,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
       ) : !isStaff ? (
         <div className="mx-auto w-full max-w-2xl px-4 py-12 sm:px-6">
           <Notice tone="warn">
-            This area is for hotel staff. Ask a manager to add {user?.email ? <strong>{user.email}</strong> : "your email"} on the Team page.
+            This area is for hotel staff. Ask an admin to add {user?.email ? <strong>{user.email}</strong> : "your email"} on the Team page.
           </Notice>
           <Link href="/" className="btn-quiet mt-6">Back to the website</Link>
         </div>
@@ -185,7 +171,7 @@ function Count({ n, label, inverted }: { n: number; label: string; inverted?: bo
 }
 
 // What needs doing today, refreshed whenever staff move between sections
-function useCounts(key: string | null, role: Role | undefined): Counts | null {
+function useCounts(key: string | null): Counts | null {
   const [counts, setCounts] = useState<Counts | null>(null);
   useEffect(() => {
     if (!key) return;
@@ -193,15 +179,14 @@ function useCounts(key: string | null, role: Role | undefined): Counts | null {
     const sb = supabase();
     const today = todayManila();
     const head = { count: "exact" as const, head: true };
-    const frontDesk = role !== "housekeeping";
     Promise.all([
-      frontDesk ? sb.from("bookings").select("id", head).eq("status", "confirmed").eq("check_in", today) : null,
-      frontDesk ? sb.from("bookings").select("id", head).eq("status", "checked_in").lte("check_out", today) : null,
+      sb.from("bookings").select("id", head).eq("status", "confirmed").eq("check_in", today),
+      sb.from("bookings").select("id", head).eq("status", "confirmed").eq("check_out", today),
       sb.from("rooms").select("id", head).eq("status", "dirty"),
     ]).then(([a, d, r]) => {
-      if (active) setCounts({ arrivals: a?.count ?? 0, departures: d?.count ?? 0, dirty: r.count ?? 0 });
+      if (active) setCounts({ arrivals: a.count ?? 0, departures: d.count ?? 0, dirty: r.count ?? 0 });
     });
     return () => { active = false; };
-  }, [key, role]);
+  }, [key]);
   return counts;
 }

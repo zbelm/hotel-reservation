@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
 import { BookingBadge, Notice, RoomBadge, Spinner } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { addDays, money, niceDate, nightsBetween, plural, roomStatusLabel, todayManila } from "@/lib/format";
@@ -15,24 +14,20 @@ import { CalendarTab, DashboardTab, ReviewsTab } from "./StaffInsights";
 import { TeamTab } from "./StaffTeam";
 
 const HEADINGS: Record<TabKey, [string, string]> = {
-  today: ["Today", "Who arrives, who leaves, and who is in house."],
-  calendar: ["Room calendar", "Two weeks of bookings by room. Open a bar to see the booking."],
+  today: ["Today", "Who arrives today, who leaves, and who is staying tonight."],
+  calendar: ["Calendar", "Two weeks of rooms booked per room type. Open a booking to see it."],
   find: ["Find a booking", "Search by booking code, guest name or email."],
   walkin: ["New booking", "For walk-ins and phone bookings. These are confirmed straight away; take payment at the desk."],
-  rooms: ["Rooms", "Set each room's housekeeping status. Rooms become dirty automatically at check-out."],
+  rooms: ["Rooms", "Mark a room out of order to stop it being booked, and keep its cleaning status if you use it."],
   dashboard: ["Dashboard", "Occupancy, revenue and bookings for a date range."],
   reviews: ["Reviews", "What guests wrote after their stay."],
-  team: ["Team", "Who can use the staff portal, and what each person can do."],
+  team: ["Team", "Who can use the staff portal. Everyone here is an admin."],
 };
 
 export function StaffHome() {
-  const { profile } = useAuth();
   const params = useSearchParams();
-  const role = profile?.role;
-  const tab = currentTab(role, params.get("tab"));
-  if (!tab) return null;
+  const tab = currentTab(params.get("tab"));
   const [title, intro] = HEADINGS[tab];
-  const isManager = role === "manager" || role === "admin";
 
   return (
     <>
@@ -46,7 +41,7 @@ export function StaffHome() {
       {tab === "walkin" && <WalkIn />}
       {tab === "rooms" && <RoomBoard />}
       {tab === "dashboard" && <DashboardTab />}
-      {tab === "reviews" && <ReviewsTab canModerate={isManager} />}
+      {tab === "reviews" && <ReviewsTab canModerate />}
       {tab === "team" && <TeamTab />}
     </>
   );
@@ -56,65 +51,51 @@ export function StaffHome() {
 // Today
 // --------------------------------------------------------------------------
 function Today() {
-  const [data, setData] = useState<{ arrivals: Booking[]; inHouse: Booking[]; dirty: number } | null>(null);
+  const [rows, setRows] = useState<Booking[] | null>(null);
   const [error, setError] = useState("");
   const today = todayManila();
 
   useEffect(() => {
-    const sb = supabase();
-    Promise.all([
-      sb.from("bookings").select(BOOKING_SELECT).eq("check_in", today).in("status", ["confirmed", "checked_in"]).order("guest_name"),
-      sb.from("bookings").select(BOOKING_SELECT).eq("status", "checked_in").order("check_out"),
-      sb.from("rooms").select("id", { count: "exact", head: true }).eq("status", "dirty"),
-    ]).then(([a, h, r]) => {
-      if (a.error || h.error) setError((a.error ?? h.error)!.message);
-      else setData({ arrivals: (a.data as Booking[]) ?? [], inHouse: (h.data as Booking[]) ?? [], dirty: r.count ?? 0 });
-    });
+    // Every confirmed booking that touches today: arriving, leaving or staying
+    supabase().from("bookings").select(BOOKING_SELECT).eq("status", "confirmed")
+      .lte("check_in", today).gte("check_out", today).order("guest_name")
+      .then(({ data, error }) => (error ? setError(error.message) : setRows((data as Booking[]) ?? [])));
   }, [today]);
 
   if (error) return <Notice tone="error">{error}</Notice>;
-  if (!data) return <Spinner />;
+  if (!rows) return <Spinner />;
 
-  const waiting = data.arrivals.filter((b) => b.status === "confirmed");
-  const departures = data.inHouse.filter((b) => b.check_out <= today);
-  const staying = data.inHouse.filter((b) => b.check_out > today);
+  const arriving = rows.filter((b) => b.check_in === today);
+  const leaving = rows.filter((b) => b.check_out === today);
+  const staying = rows.filter((b) => b.check_in < today && b.check_out > today);
+  const toCollect = arriving.reduce((sum, b) => sum + owes(b), 0);
 
   return (
     <div className="grid gap-10">
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
-        <Stat label="To check in" value={waiting.length} note={`of ${data.arrivals.length} arriving today`} href="#arrivals" />
-        <Stat label="To check out" value={departures.length} note="due out today" href="#departures" />
-        <Stat label="Staying on" value={staying.length} note="in house tonight" href="#in-house" />
-        <Stat label="Rooms to clean" value={data.dirty} note="marked dirty" href="/staff?tab=rooms" />
+        <Stat label="Arriving" value={String(arriving.length)} note={`due ${niceDate(today)}`} href="#arrivals" />
+        <Stat label="Leaving" value={String(leaving.length)} note="check-out today" href="#departures" />
+        <Stat label="Staying on" value={String(staying.length)} note="arrived earlier" href="#staying" />
+        <Stat label="To collect" value={money(toCollect)} note="from today's arrivals" href="#arrivals" />
       </div>
-      <BookingList id="arrivals" title={`Arriving ${niceDate(today)}`} rows={data.arrivals} today={today}
-        empty="Nobody is due to arrive today." />
-      <BookingList id="departures" title="Leaving today" rows={departures} today={today}
-        empty="No departures due today." />
-      <BookingList id="in-house" title="Staying on" rows={staying} today={today}
-        empty="No other guests are checked in." />
+      <BookingList id="arrivals" title={`Arriving ${niceDate(today)}`} rows={arriving} empty="Nobody is due to arrive today." />
+      <BookingList id="departures" title="Leaving today" rows={leaving} empty="Nobody is due to leave today." />
+      <BookingList id="staying" title="Staying on" rows={staying} empty="No other guests are mid-stay." />
     </div>
   );
 }
 
-function Stat({ label, value, note, href }: { label: string; value: number; note: string; href: string }) {
+function Stat({ label, value, note, href }: { label: string; value: string; note: string; href: string }) {
   return (
     <Link href={href} className="bg-paper p-4 transition-colors hover:bg-sea-tint sm:p-5">
       <p className="text-sm font-medium text-muted">{label}</p>
-      <p className="mt-1 font-display text-4xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-1 font-display text-3xl font-semibold tabular-nums sm:text-4xl">{value}</p>
       <p className="mt-1 text-xs text-muted">{note}</p>
     </Link>
   );
 }
 
-/** The next step for this booking at the desk, if there is one today. */
-function nextStep(b: Booking, today: string): string | null {
-  if (b.status === "confirmed" && b.check_in <= today) return "Check in";
-  if (b.status === "checked_in" && b.check_out <= today) return "Check out";
-  return null;
-}
-
-function BookingList({ id, title, rows, empty, today }: { id?: string; title: ReactNode; rows: Booking[]; empty: string; today: string }) {
+function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode; rows: Booking[]; empty: string }) {
   return (
     <section id={id} className="scroll-mt-24">
       <h2 className="mb-3 flex items-baseline gap-2 text-xl font-semibold">
@@ -129,14 +110,13 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
             {rows.map((b) => {
               const br = b.booking_rooms?.[0];
               const balance = owes(b);
-              const step = nextStep(b, today);
               return (
                 <li key={b.id}>
                   <Link href={`/staff/booking?id=${b.id}`} className="card block p-4 transition-colors hover:border-sea">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{b.guest_name}</p>
-                        <p className="text-sm text-muted">{br?.rooms?.number ? `Room ${br.rooms.number} · ` : ""}{br?.room_types?.name}</p>
+                        <p className="text-sm text-muted">{br?.room_types?.name}</p>
                       </div>
                       <BookingBadge status={b.status} />
                     </div>
@@ -145,7 +125,6 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
                       <span className="text-muted">Arriving {arrivalLabel(b.arrival_time)?.toLowerCase() ?? "time not given"}</span>
                       {balance > 0 && <span className="font-semibold text-sun">{money(balance)} to pay{b.payment_option === "pay_at_hotel" ? " · pays at hotel" : ""}</span>}
                     </div>
-                    {step && <span className="btn-primary mt-3 w-full">{step}</span>}
                   </Link>
                 </li>
               );
@@ -157,7 +136,7 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs font-medium text-muted">
                 <tr>
-                  <th className="px-4 py-3">Guest</th><th className="px-4 py-3">Room</th><th className="px-4 py-3">Dates</th>
+                  <th className="px-4 py-3">Guest</th><th className="px-4 py-3">Room type</th><th className="px-4 py-3">Dates</th>
                   <th className="px-4 py-3">Arriving</th><th className="px-4 py-3">Balance</th><th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3"><span className="sr-only">Action</span></th>
                 </tr>
@@ -166,22 +145,19 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
                 {rows.map((b) => {
                   const br = b.booking_rooms?.[0];
                   const balance = owes(b);
-                  const step = nextStep(b, today);
                   return (
                     <tr key={b.id} className="hover:bg-sand/60">
                       <td className="px-4 py-3">
                         <Link href={`/staff/booking?id=${b.id}`} className="font-medium text-sea hover:underline">{b.guest_name}</Link>
                         <p className="font-mono text-xs text-muted">{b.code}</p>
                       </td>
-                      <td className="px-4 py-3">{br?.rooms?.number ? <strong className="font-semibold">{br.rooms.number} </strong> : null}<span className="text-muted">{br?.room_types?.name}</span></td>
+                      <td className="px-4 py-3 text-muted">{br?.room_types?.name}</td>
                       <td className="whitespace-nowrap px-4 py-3">{niceDate(b.check_in)} – {niceDate(b.check_out)}<p className="text-xs text-muted">{plural(nightsBetween(b.check_in, b.check_out), "night")}</p></td>
                       <td className="whitespace-nowrap px-4 py-3 text-muted">{arrivalLabel(b.arrival_time) ?? "Not given"}</td>
                       <td className={`whitespace-nowrap px-4 py-3 tabular-nums ${balance > 0 ? "font-semibold text-sun" : "text-muted"}`}>{balance > 0 ? money(balance) : "Paid"}{balance > 0 && b.payment_option === "pay_at_hotel" && <p className="text-xs font-normal text-muted">Pays at hotel</p>}</td>
                       <td className="px-4 py-3"><BookingBadge status={b.status} /></td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/staff/booking?id=${b.id}`} className={step ? "btn-primary px-3.5! py-1.5! text-sm" : "text-sm font-medium text-sea hover:underline"}>
-                          {step ?? "Open"}
-                        </Link>
+                        <Link href={`/staff/booking?id=${b.id}`} className="text-sm font-medium text-sea hover:underline">Open</Link>
                       </td>
                     </tr>
                   );
@@ -196,7 +172,7 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
 }
 
 // --------------------------------------------------------------------------
-// Rooms (housekeeping)
+// Rooms: out of order and cleaning status
 // --------------------------------------------------------------------------
 const NEXT_STATUS: Partial<Record<RoomStatus, { to: RoomStatus; label: string }>> = {
   dirty: { to: "cleaning", label: "Start cleaning" },
@@ -242,7 +218,7 @@ function RoomBoard() {
   const counts = rooms.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
   const shown = filter === "all" ? rooms : rooms.filter((r) => r.status === filter);
   const floors = [...new Set(shown.map((r) => r.floor ?? 0))].sort();
-  const filters: (RoomStatus | "all")[] = ["all", "dirty", "cleaning", "vacant_clean", "occupied", "out_of_order"];
+  const filters: (RoomStatus | "all")[] = ["all", "vacant_clean", "dirty", "cleaning", "out_of_order"];
 
   return (
     <div className="grid gap-6">
@@ -305,7 +281,6 @@ function FindBooking() {
   const [result, setResult] = useState<{ term: string; rows: Booking[] } | null>(null);
   const [recent, setRecent] = useState<Booking[] | null>(null);
   const [error, setError] = useState("");
-  const today = todayManila();
 
   // Before searching, show the latest bookings so the page is useful straight away
   useEffect(() => {
@@ -338,9 +313,9 @@ function FindBooking() {
       </form>
       {error && <Notice tone="error">{error}</Notice>}
       {result ? (
-        <BookingList title={`Results for “${result.term}”`} rows={result.rows} today={today} empty="No bookings match. Try part of the name, or the code from the guest's confirmation." />
+        <BookingList title={`Results for “${result.term}”`} rows={result.rows} empty="No bookings match. Try part of the name, or the code from the guest's confirmation." />
       ) : recent ? (
-        <BookingList title="Latest bookings" rows={recent} today={today} empty="No bookings yet." />
+        <BookingList title="Latest bookings" rows={recent} empty="No bookings yet." />
       ) : (
         <Spinner />
       )}
@@ -490,5 +465,5 @@ function WalkIn() {
 
 // Money still to collect: only on stays that are going ahead (not cancelled, expired or no-shows)
 function owes(b: Booking): number {
-  return ["confirmed", "checked_in", "checked_out"].includes(b.status) ? Math.max(Number(b.total) - Number(b.amount_paid), 0) : 0;
+  return ["confirmed", "checked_out"].includes(b.status) ? Math.max(Number(b.total) - Number(b.amount_paid), 0) : 0;
 }

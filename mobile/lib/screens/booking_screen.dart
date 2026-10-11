@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
@@ -245,82 +243,6 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     }
   }
 
-  // ---- ID upload ------------------------------------------------------------
-
-  static const _idTypes = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic'};
-
-  Future<void> _chooseId() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: Text(tr('Take a photo', 'Kumuha ng litrato')),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: Text(tr('Choose from your photos', 'Pumili mula sa mga litrato mo')),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
-          ),
-        ]),
-      ),
-    );
-    if (source == null) return;
-
-    final XFile? file;
-    try {
-      file = await ImagePicker().pickImage(source: source, maxWidth: 2200, imageQuality: 85);
-    } catch (e) {
-      _say(error: tr("Couldn't open the camera or photos.", 'Hindi mabuksan ang camera o mga litrato.'));
-      return;
-    }
-    if (file == null) return;
-
-    final bytes = await file.readAsBytes();
-    if (bytes.length > 5 * 1024 * 1024) {
-      _say(error: tr('That file is over 5 MB. Try a smaller photo.', 'Lampas 5 MB ang file. Subukan ang mas maliit na litrato.'));
-      return;
-    }
-    final lower = file.name.toLowerCase();
-    final fromName = lower.endsWith('.png')
-        ? 'image/png'
-        : lower.endsWith('.webp')
-            ? 'image/webp'
-            : lower.endsWith('.heic')
-                ? 'image/heic'
-                : 'image/jpeg';
-    final type = _idTypes.containsKey(file.mimeType) ? file.mimeType! : fromName;
-    final path = '${widget.bookingId}/id-${DateTime.now().millisecondsSinceEpoch}.${_idTypes[type]}';
-    final previous = _b?['id_document_path'] as String?;
-    if (!mounted) return;
-
-    setState(() {
-      _busy = true;
-      _error = null;
-      _notice = null;
-    });
-    try {
-      final bucket = db.storage.from('guest-ids');
-      await bucket.uploadBinary(path, bytes, fileOptions: FileOptions(contentType: type));
-      await db.rpc('record_id_upload', params: {'p_booking_id': widget.bookingId, 'p_path': path});
-      if (previous != null && previous != path) {
-        try {
-          await bucket.remove([previous]); // replace the earlier photo
-        } catch (_) {}
-      }
-      _say(notice: tr('ID received. The front desk will check it when you arrive.',
-          'Natanggap ang ID. Titingnan ito ng front desk pagdating mo.'));
-      await _load();
-    } catch (e) {
-      _say(error: errorText(e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final b = _b;
@@ -342,7 +264,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     final requests = (b['special_requests'] as String?)?.trim() ?? '';
     final balance = (num.tryParse('${b['total']}') ?? 0) - (num.tryParse('${b['amount_paid']}') ?? 0);
     final paidSomething = (num.tryParse('${b['amount_paid']}') ?? 0) > 0;
-    final showReceipt = paidSomething || const ['confirmed', 'checked_in', 'checked_out'].contains(status);
+    final showReceipt = paidSomething || const ['confirmed', 'checked_out'].contains(status);
     final payment = switch (b['payment_option']) {
       'pay_at_hotel' => tr('At the hotel', 'Sa hotel'),
       'front_desk' => tr('At the front desk', 'Sa front desk'),
@@ -366,7 +288,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
             const SizedBox(height: 8),
             if (_error != null) Note(_error!, color: tones(context).bad),
             if (_notice != null) Note(_notice!, color: tones(context).good),
-            if (b['payment_option'] == 'pay_at_hotel' && balance > 0 && (status == 'confirmed' || status == 'checked_in'))
+            if (b['payment_option'] == 'pay_at_hotel' && balance > 0 && status == 'confirmed')
               Note(tr('Pay ${money(balance)} at the front desk when you arrive. Cash, card, GCash and Maya are accepted.',
                   'Bayaran ang ${money(balance)} sa front desk pagdating mo. Tumatanggap ng cash, card, GCash at Maya.')),
             if (holdActive) ...[
@@ -404,7 +326,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
               ),
               const SizedBox(height: 12),
             ],
-            if (status == 'confirmed' || status == 'checked_in') ...[
+            if (status == 'confirmed') ...[
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -435,7 +357,6 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                   InfoRow(tr('Guest', 'Bisita'), b['guest_name'] as String),
                   if (arriving != null) InfoRow(tr('Arriving', 'Darating'), arriving),
                   if (requests.isNotEmpty) InfoRow(tr('Requests', 'Mga hiling'), requests),
-                  if (br?['rooms']?['number'] != null) InfoRow(tr('Room', 'Kuwarto'), br!['rooms']['number'] as String),
                   if (status != 'held') InfoRow(tr('Payment', 'Bayad'), payment),
                   if (plan != null)
                     InfoRow(
@@ -459,7 +380,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                       alignment: Alignment.centerRight,
                       child: Text(tr('Paid ${money(b['amount_paid'])}', 'Nabayaran: ${money(b['amount_paid'])}'),
                           style: TextStyle(color: muted))),
-                  if ((status == 'confirmed' || status == 'checked_in') && balance > 0)
+                  if (status == 'confirmed' && balance > 0)
                     Align(
                         alignment: Alignment.centerRight,
                         child: Text(tr('${money(balance)} left to pay', '${money(balance)} pa ang babayaran'),
@@ -484,7 +405,6 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
               ),
             ),
             if (status == 'confirmed') _changeDatesCard(b, plan),
-            if (status == 'confirmed' || holdActive) _idCard(b),
             if (status == 'checked_out') _ReviewCard(bookingId: widget.bookingId, existing: _myReview, onPosted: _load),
             if (status == 'confirmed' || holdActive) _beforeYouArrive(b),
             if (status == 'confirmed' || holdActive) ...[
@@ -532,53 +452,6 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                 icon: const Icon(Icons.call_outlined),
                 label: Text(tr('Call the front desk', 'Tumawag sa front desk')),
               ),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _idCard(Map<String, dynamic> b) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final verified = b['id_verified_at'] != null;
-    final uploadedAt = b['id_uploaded_at'] as String?;
-    final hasFile = b['id_document_path'] != null;
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(tr('Send your ID before you arrive', 'Ipadala ang ID bago dumating'),
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            if (verified)
-              Text(tr('Your ID has been checked. The photo has been deleted.', 'Na-check na ang ID mo. Binura na ang litrato.'),
-                  style: TextStyle(color: tones(context).good))
-            else ...[
-              Text(
-                hasFile && uploadedAt != null
-                    ? tr('ID received ${longDate(uploadedAt)}. The front desk will check it when you arrive.',
-                        'Natanggap ang ID noong ${longDate(uploadedAt)}. Titingnan ito ng front desk pagdating mo.')
-                    : tr('Upload a clear photo of a government ID or passport for the guest named on the booking. Check-in is quicker, and only the front desk can see it.',
-                        'Mag-upload ng malinaw na litrato ng government ID o pasaporte ng bisitang nakapangalan sa booking. Mas mabilis ang check-in, at ang front desk lang ang makakakita nito.'),
-                style: TextStyle(color: hasFile ? tones(context).good : muted),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _chooseId,
-                icon: const Icon(Icons.badge_outlined),
-                label: Text(_busy
-                    ? tr('Uploading…', 'Ina-upload…')
-                    : hasFile
-                        ? tr('Upload a different photo', 'Mag-upload ng ibang litrato')
-                        : tr('Upload a photo of your ID', 'I-upload ang litrato ng ID')),
-              ),
-              const SizedBox(height: 6),
-              Text(tr('We delete the photo as soon as the front desk has checked it.',
-                  'Binubura namin ang litrato sa sandaling ma-check ito ng front desk.'),
-                  style: TextStyle(color: muted, fontSize: 12)),
-            ],
           ]),
         ),
       ),

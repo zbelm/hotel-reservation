@@ -1,6 +1,6 @@
 # Hotel Reservation System
 
-Guests search, book and pay for rooms on the web or the mobile app. Staff run check-in, check-out and housekeeping from a staff portal. Everything runs on free plans to start.
+A reservation system: guests search and book rooms on the web or the mobile app, and the hotel's admins manage those reservations from a staff portal. Everything runs on free plans to start.
 
 | Folder | What it is | Runs on |
 | --- | --- | --- |
@@ -9,14 +9,14 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
 | `mobile/` | Guest app for Android and iPhone (Flutter) | Your phone |
 
 **What works now:**
-- **Guests (web and app):** room search with live availability and a date picker that shows the lowest nightly price and full nights, room rates, booking with a 15-minute hold, paying cash (or card, GCash, Maya) at the hotel on Flexible rates, optional online payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards) with automatic confirmation, my bookings with a QR code, changing dates online (flexible rates, up to 48 hours before check-in), uploading an ID before arrival, a printable receipt, cancellation with the refund rule applied, reviews from guests who stayed, and English or Filipino.
-- **Staff (web):** a staff portal with its own sidebar and counts of what needs doing; today's arrivals, departures and in-house guests with check-in and check-out buttons, a two-week room calendar, team management by email, a dashboard with occupancy and revenue charts, room board, walk-in bookings, check-in with room assignment, ID check, date changes, desk payments, check-out with a housekeeping task, and review moderation (managers).
+- **Guests (web and app):** room search with live availability and a date picker that shows the lowest nightly price and full nights, room rates, booking with a 15-minute hold, paying cash (or card, GCash, Maya) at the hotel on Flexible rates, optional online payment through PayMongo (GCash, Maya, GrabPay, QR Ph, cards) with automatic confirmation, my bookings with a QR code, changing dates online (flexible rates, up to 48 hours before check-in), a printable receipt, cancellation with the refund rule applied, reviews from guests who stayed, and English or Filipino.
+- **Staff portal (web, admins only):** today's arrivals, departures and guests mid-stay, the amount to collect, a two-week calendar per room type, finding any booking, walk-in and phone bookings, date changes, recording payments, cancellations and no-shows, rooms out of order, a dashboard with occupancy and revenue, review moderation, and adding other admins by email. There is one staff role (admin); no check-in, check-out or room assignment, so it stays a reservation system.
 
 **Booking rules** (all enforced in the database, so the web and mobile apps can't get around them):
 - Two guests can never book the last room: bookings for a room type are processed one at a time.
 - Unpaid bookings hold the room for 15 minutes, then release it automatically.
 - Flexible rate: free cancellation until 48 hours before check-in, then the first night is kept. Non-refundable rate: no refund.
-- Guests only see their own bookings. Only staff see rooms and all bookings. Only managers change prices and roles.
+- Guests only see their own bookings. Only admins see rooms and all bookings, and only admins change prices and add staff.
 
 ---
 
@@ -32,12 +32,13 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    4. `supabase/migrations/20261008000004_cron.sql`
    5. `supabase/migrations/20261008000005_lock_internal_functions.sql`
    6. `supabase/migrations/20261008000006_booking_details.sql`
-   7. `supabase/migrations/20261008000007_guest_features.sql` (calendar prices, reviews, date changes, ID upload, staff dashboard)
-   8. `supabase/migrations/20261008000008_guest_id_storage.sql` (private storage for guest IDs)
+   7. `supabase/migrations/20261008000007_guest_features.sql` (calendar prices, reviews, date changes, staff dashboard)
+   8. `supabase/migrations/20261008000008_guest_id_storage.sql` (guest ID storage; no longer used after migration 12)
    9. `supabase/migrations/20261008000009_staff_accounts.sql` (adding staff from the Team page)
    10. `supabase/migrations/20261011000010_pay_at_hotel_and_fixes.sql` (pay at the hotel, plus security and refund fixes)
    11. `supabase/migrations/20261011000011_qa_fixes_and_photos.sql` (database checker fixes, room photos; hides Non-refundable rates until online payment is on)
-   12. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   12. `supabase/migrations/20261011000012_reservation_only.sql` (one staff role, admin; removes check-in, check-out, room assignment and guest ID upload)
+   13. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -52,24 +53,13 @@ update public.profiles set role = 'admin'
 where id = (select id from auth.users where email = 'you@example.com');
 ```
 
-**Adding staff:** after that, open **Staff → Team** on the website. Add each person's email and pick a role: **Front desk** (bookings, check-in and check-out, payments, reports), **Housekeeping** (the Rooms page only), **Manager** (everything, plus hiding reviews and managing the team) or **Admin** (same as manager, and can make other admins). If they already have an account, access starts straight away; if not, it starts the first time they sign in with that email. Nobody can change their own role, and only an admin can give or change the admin role.
+**Adding staff:** after that, open **Staff → Team** on the website. Add each person's email; everyone added is an admin. If they already have a confirmed account, access starts straight away; if not, it starts the first time they sign in with that email and confirm it. Nobody can remove their own access.
 
 **Your hotel's information:** the text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is in `web/src/lib/hotel.ts` for the website and `mobile/lib/hotel.dart` for the app, each in English and Filipino. It ships with sample content for "Sample Bay Hotel": replace it with your real details before taking bookings, and keep the two languages saying the same thing. The rest of the website's wording is in `web/src/lib/messages.ts`. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); put the Filipino room description in `room_types.description_fil`, and add photo URLs to `room_types.photos` to replace the illustrations.
 
-**Guest IDs:** guests can upload a photo of their ID from My stays. Files go to the private `guest-ids` storage bucket; only that guest and front desk staff can open them, and the front desk deletes the photo when they confirm the ID at check-in. Hosted Supabase doesn't let the SQL Editor add storage rules, so after running migration 8 add the rule by hand:
-
-1. **Storage → Policies**, find the **guest-ids** bucket, click **New policy → For full customization**.
-2. Name: `Guest and front desk`. Allowed operations: tick **SELECT**, **INSERT** and **DELETE**. Target roles: **authenticated**.
-3. Policy definition:
-
-   ```sql
-   bucket_id = 'guest-ids' and (public.is_front_desk() or exists (select 1 from public.bookings b where b.id::text = (storage.foldername(name))[1] and b.guest_id = auth.uid()))
-   ```
-4. **Review → Save policy**.
-
 ### 2. Payments
 
-**Pay at the hotel** works with no setup. On Flexible rates guests choose "Pay at the hotel", the booking is confirmed straight away, and the front desk records the cash, card, GCash or Maya payment on the booking page when they arrive. Non-refundable rates need online payment. Each guest can have at most 3 unpaid pay-at-hotel bookings, and unpaid confirmed bookings become no-shows at check-out time the day after arrival.
+**Pay at the hotel** works with no setup. On Flexible rates guests choose "Pay at the hotel", the booking is confirmed straight away, and an admin records the cash, card, GCash or Maya payment on the booking page when the guest arrives. Non-refundable rates need online payment. Each guest can have at most 3 unpaid pay-at-hotel bookings; an admin can mark a guest who never came as a no-show.
 
 **Online payment (optional): PayMongo.** Once the steps below are done, add `NEXT_PUBLIC_ONLINE_PAYMENTS=1` in Vercel (and build the app with `--dart-define=ONLINE_PAYMENTS=true`) so guests also see "Pay online now", and switch the Non-refundable rates back on in the SQL editor: `update rate_plans set is_active = true where not refundable;`
 
@@ -135,7 +125,7 @@ Publishing costs US$25 once for Google Play and US$99 a year for the Apple App S
 
 ## Tests
 
-The booking rules have 21 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
+The booking rules have 21 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, walk-ins, permissions, no-shows, calendar prices, date changes, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
 
 ```bash
 PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh
@@ -145,7 +135,6 @@ PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh
 
 1. Guest picks dates → `search_availability` shows room types with rooms left.
 2. Guest reserves → `create_booking` holds a room for 15 minutes.
-3. App calls the `create-checkout` function → guest pays on PayMongo's page.
-4. PayMongo calls `paymongo-webhook` → `confirm_payment` confirms the booking. A late payment for a room that was already re-sold is flagged for refund instead.
-5. Every 5 minutes a scheduled job releases unpaid holds and marks no-shows.
-6. Front desk checks the guest in (assigns a clean room), takes any balance, and checks out (room goes to housekeeping).
+3. Guest chooses **Pay at the hotel** → `choose_pay_at_hotel` confirms it straight away. (With online payment on: the `create-checkout` function sends them to PayMongo, and `paymongo-webhook` → `confirm_payment` confirms it; a late payment for a room already re-sold is flagged for refund.)
+4. An admin records the payment when the guest arrives (`record_desk_payment`), or marks a no-show (`mark_no_show`).
+5. Every 5 minutes a scheduled job releases unfinished holds and marks stays whose check-out time has passed as completed, which opens the guest's review.

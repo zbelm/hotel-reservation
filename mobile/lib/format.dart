@@ -43,9 +43,8 @@ String guests(int adults, int children) {
 }
 
 const _statusEn = {
-  'held': 'Awaiting payment',
+  'held': 'On hold',
   'confirmed': 'Confirmed',
-  'checked_in': 'Checked in',
   'checked_out': 'Completed',
   'cancelled': 'Cancelled',
   'no_show': 'No-show',
@@ -53,9 +52,8 @@ const _statusEn = {
 };
 
 const _statusFil = {
-  'held': 'Naghihintay ng bayad',
+  'held': 'Nakahawak',
   'confirmed': 'Kumpirmado',
-  'checked_in': 'Naka-check in',
   'checked_out': 'Tapos na',
   'cancelled': 'Kinansela',
   'no_show': 'Hindi dumating',

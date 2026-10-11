@@ -33,7 +33,7 @@ export function MyBookings() {
   if (!session || (!bookings && !error)) return <Spinner label={t.stays.loading} />;
 
   const today = todayManila();
-  const upcoming = bookings?.filter((b) => b.check_out >= today && ["held", "confirmed", "checked_in"].includes(b.status)) ?? [];
+  const upcoming = bookings?.filter((b) => b.check_out >= today && ["held", "confirmed"].includes(b.status)) ?? [];
   const past = bookings?.filter((b) => !upcoming.includes(b)) ?? [];
 
   return (

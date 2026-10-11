@@ -22,7 +22,6 @@ const en = {
   status: {
     held: "On hold, not confirmed",
     confirmed: "Confirmed",
-    checked_in: "Checked in",
     checked_out: "Completed",
     cancelled: "Cancelled",
     no_show: "No-show",
@@ -307,19 +306,6 @@ const en = {
     close: "Not now",
   },
 
-  idUpload: {
-    title: "Send your ID before you arrive",
-    body: "Upload a clear photo of a government ID or passport for the guest named on the booking. Check-in is quicker, and only the front desk can see it.",
-    choose: "Upload a photo of your ID",
-    replace: "Upload a different photo",
-    uploading: "Uploading…",
-    received: (when: string) => `ID received ${when}. The front desk will check it when you arrive.`,
-    verified: "Your ID has been checked. The photo has been deleted.",
-    tooBig: "That file is over 5 MB. Try a smaller photo.",
-    wrongType: "Upload a JPG, PNG, WebP, HEIC or PDF file.",
-    privacy: "We delete the photo as soon as the front desk has checked it.",
-  },
-
   review: {
     title: "How was your stay?",
     intro: "Your review helps other guests decide. It shows with your first name and last initial.",
@@ -392,7 +378,6 @@ const fil: Messages = {
   status: {
     held: "Nakahawak, hindi pa kumpirmado",
     confirmed: "Kumpirmado",
-    checked_in: "Naka-check in",
     checked_out: "Tapos na",
     cancelled: "Kinansela",
     no_show: "Hindi dumating",
@@ -675,19 +660,6 @@ const fil: Messages = {
     saving: "Pinapalitan…",
     done: "Napalitan na ang mga petsa mo.",
     close: "Huwag muna",
-  },
-
-  idUpload: {
-    title: "Ipadala ang ID bago dumating",
-    body: "Mag-upload ng malinaw na litrato ng government ID o pasaporte ng bisitang nakapangalan sa booking. Mas mabilis ang check-in, at ang front desk lang ang makakakita nito.",
-    choose: "I-upload ang litrato ng ID",
-    replace: "Mag-upload ng ibang litrato",
-    uploading: "Ina-upload…",
-    received: (when) => `Natanggap ang ID noong ${when}. Titingnan ito ng front desk pagdating mo.`,
-    verified: "Na-check na ang ID mo. Binura na ang litrato.",
-    tooBig: "Lampas 5 MB ang file. Subukan ang mas maliit na litrato.",
-    wrongType: "Mag-upload ng JPG, PNG, WebP, HEIC o PDF na file.",
-    privacy: "Binubura namin ang litrato sa sandaling ma-check ito ng front desk.",
   },
 
   review: {

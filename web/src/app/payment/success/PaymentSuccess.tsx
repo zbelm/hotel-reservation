@@ -47,7 +47,7 @@ export function PaymentSuccess() {
     );
   }
 
-  if (status === "confirmed" || status === "checked_in") {
+  if (status === "confirmed") {
     return (
       <div className="card p-8 text-center">
         <p className="text-sm font-semibold text-good">{t.payment.received}</p>
