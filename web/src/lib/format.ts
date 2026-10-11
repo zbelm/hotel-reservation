@@ -48,7 +48,6 @@ export const roomStatusLabel: Record<RoomStatus, string> = {
   vacant_clean: "Clean",
   dirty: "Dirty",
   cleaning: "Cleaning",
-  occupied: "Occupied",
   out_of_order: "Out of order",
 };
 

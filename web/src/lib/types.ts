@@ -87,7 +87,7 @@ export type Booking = {
   }[];
 };
 
-export type RoomStatus = "vacant_clean" | "dirty" | "cleaning" | "occupied" | "out_of_order";
+export type RoomStatus = "vacant_clean" | "dirty" | "cleaning" | "out_of_order";
 
 export type Room = {
   id: string;

@@ -87,9 +87,9 @@ export function BookingDetail() {
   const balance = Number(b.total) - Number(b.amount_paid);
   const arriving = arrivalLabel(b.arrival_time, lang);
   const upcoming = ["held", "confirmed"].includes(b.status);
-  const payAtHotelDue = b.payment_option === "pay_at_hotel" && balance > 0 && ["confirmed", "checked_in"].includes(b.status);
+  const payAtHotelDue = b.payment_option === "pay_at_hotel" && balance > 0 && b.status === "confirmed";
   const canPayHotel = Boolean(plan?.refundable);
-  const hasReceipt = Number(b.amount_paid) > 0 || ["confirmed", "checked_in", "checked_out"].includes(b.status);
+  const hasReceipt = Number(b.amount_paid) > 0 || ["confirmed", "checked_out"].includes(b.status);
 
   return (
     <>
@@ -148,7 +148,7 @@ export function BookingDetail() {
             <span className="font-display text-2xl font-semibold">{money(b.total)}</span>
           </div>
           <p className="mt-1 text-right text-sm text-muted">
-            {t.booking.paid(money(b.amount_paid))}{balance > 0 && ["confirmed", "checked_in"].includes(b.status) ? `, ${t.booking.toPay(money(balance))}` : ""}
+            {t.booking.paid(money(b.amount_paid))}{balance > 0 && b.status === "confirmed" ? `, ${t.booking.toPay(money(balance))}` : ""}
           </p>
           {hasReceipt && (
             <div className="mt-4 border-t border-line pt-4 text-right">
@@ -157,7 +157,7 @@ export function BookingDetail() {
           )}
         </div>
 
-        {["confirmed", "checked_in"].includes(b.status) && (
+        {b.status === "confirmed" && (
           <div className="card flex flex-col items-center self-start p-6 text-center">
             <div className="rounded-xl bg-white p-3"><QRCodeSVG value={b.code} size={176} /></div>
             <p className="mt-3 font-mono text-lg font-semibold tracking-widest">{b.code}</p>

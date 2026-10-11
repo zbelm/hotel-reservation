@@ -184,7 +184,6 @@ const ROOM_EDGE: Record<RoomStatus, string> = {
   vacant_clean: "border-l-good",
   dirty: "border-l-sun",
   cleaning: "border-l-sea",
-  occupied: "border-l-bay",
   out_of_order: "border-l-bad",
 };
 
@@ -248,21 +247,17 @@ function RoomBoard() {
                     </div>
                     <RoomBadge status={r.status} />
                   </div>
-                  {r.status === "occupied" ? (
-                    <p className="mt-4 text-sm text-muted">Guest in room. It becomes dirty at check-out.</p>
-                  ) : (
-                    <div className="mt-4 grid gap-2">
-                      {next && (
-                        <button className="btn-primary py-2! text-sm" disabled={busy === r.id} onClick={() => setStatus(r, next.to)}>
-                          {busy === r.id ? "Saving…" : next.label}
-                        </button>
-                      )}
-                      <select aria-label={`Status of room ${r.number}`} className="field py-1.5! text-sm" value={r.status} disabled={busy === r.id}
-                        onChange={(e) => setStatus(r, e.target.value as RoomStatus)}>
-                        {SETTABLE.map((s) => <option key={s} value={s}>{roomStatusLabel[s]}</option>)}
-                      </select>
-                    </div>
-                  )}
+                  <div className="mt-4 grid gap-2">
+                    {next && (
+                      <button className="btn-primary py-2! text-sm" disabled={busy === r.id} onClick={() => setStatus(r, next.to)}>
+                        {busy === r.id ? "Saving…" : next.label}
+                      </button>
+                    )}
+                    <select aria-label={`Status of room ${r.number}`} className="field py-1.5! text-sm" value={r.status} disabled={busy === r.id}
+                      onChange={(e) => setStatus(r, e.target.value as RoomStatus)}>
+                      {SETTABLE.map((s) => <option key={s} value={s}>{roomStatusLabel[s]}</option>)}
+                    </select>
+                  </div>
                 </div>
               );
             })}

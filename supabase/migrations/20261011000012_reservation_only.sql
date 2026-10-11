@@ -326,3 +326,29 @@ alter table public.bookings
   drop column if exists id_document_path,
   drop column if exists id_uploaded_at,
   drop column if exists id_verified_at;
+
+-- ---------------------------------------------------------------------------
+-- 4. Rooms are never "occupied" any more (that came from check-in)
+-- ---------------------------------------------------------------------------
+alter table public.rooms drop constraint if exists rooms_status_check;
+alter table public.rooms add constraint rooms_status_check
+  check (status in ('vacant_clean', 'dirty', 'cleaning', 'out_of_order'));
+
+create or replace function public.set_room_status(p_room_id uuid, p_status text) returns void
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Only admins can change room status'; end if;
+  if p_status not in ('vacant_clean', 'dirty', 'cleaning', 'out_of_order') then
+    raise exception 'Unknown room status %', p_status;
+  end if;
+
+  update public.rooms set status = p_status where id = p_room_id;
+  if not found then raise exception 'Room not found'; end if;
+
+  update public.housekeeping_tasks
+     set status = case when p_status = 'vacant_clean' then 'done'
+                       when p_status = 'cleaning' then 'in_progress' else status end,
+         done_at = case when p_status = 'vacant_clean' then now() else done_at end,
+         assigned_to = coalesce(assigned_to, auth.uid())
+   where room_id = p_room_id and status <> 'done';
+end $$;

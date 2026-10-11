@@ -42,7 +42,6 @@ const roomTone: Record<RoomStatus, string> = {
   vacant_clean: "bg-good-tint text-good border-good/30",
   dirty: "bg-sun-tint text-sun border-sun/30",
   cleaning: "bg-sea-tint text-sea border-sea/30",
-  occupied: "bg-paper text-ink border-line",
   out_of_order: "bg-bad-tint text-bad border-bad/30",
 };
 
