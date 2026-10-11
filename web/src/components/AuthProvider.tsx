@@ -9,6 +9,8 @@ type AuthState = {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  /** True until we've looked up the signed-in person's profile (or found there isn't one) */
+  profileLoading: boolean;
   isStaff: boolean;
   refreshProfile: () => Promise<void>;
 };
@@ -21,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileFor, setProfileFor] = useState<string | null>(null);
 
   async function loadProfile(s: Session | null) {
     if (!s) {
@@ -33,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("id", s.user.id)
       .maybeSingle();
     setProfile((data as Profile) ?? null);
+    setProfileFor(s.user.id);
   }
 
   useEffect(() => {
@@ -54,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     profile,
     loading,
+    profileLoading: Boolean(session && profileFor !== session.user.id),
     isStaff: Boolean(profile && STAFF_ROLES.includes(profile.role)),
     refreshProfile: () => loadProfile(session),
   };

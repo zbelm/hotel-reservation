@@ -3,7 +3,7 @@ import { Page } from "@/components/Page";
 import { Spinner } from "@/components/ui";
 import { Login } from "./Login";
 
-export const metadata = { title: "Sign in" };
+export const metadata = { title: "Sign in", robots: { index: false, follow: false } };
 
 export default function LoginPage() {
   return (

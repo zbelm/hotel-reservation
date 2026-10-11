@@ -3,7 +3,7 @@ import { Page } from "@/components/Page";
 import { Spinner } from "@/components/ui";
 import { Checkout } from "./Checkout";
 
-export const metadata = { title: "Guest details" };
+export const metadata = { title: "Guest details", robots: { index: false, follow: false } };
 
 export default function CheckoutPage() {
   return (

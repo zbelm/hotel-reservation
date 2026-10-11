@@ -83,6 +83,7 @@ function Detail() {
 
   const br = b.booking_rooms?.[0];
   const balance = Number(b.total) - Number(b.amount_paid);
+  const active = ["confirmed", "checked_in", "checked_out"].includes(b.status);
   const canCheckIn = b.status === "confirmed" && b.check_in <= todayManila();
 
   return (
@@ -121,7 +122,7 @@ function Detail() {
           <dl className="grid grid-cols-2 gap-y-2 text-[15px]">
             <dt className="text-muted">Total</dt><dd className="text-right font-semibold">{money(b.total)}</dd>
             <dt className="text-muted">Paid</dt><dd className="text-right">{money(b.amount_paid)}</dd>
-            <dt className="text-muted">Balance</dt><dd className={`text-right font-semibold ${balance > 0 ? "text-sun" : "text-good"}`}>{money(Math.max(balance, 0))}</dd>
+            <dt className="text-muted">Balance</dt><dd className={`text-right font-semibold ${balance > 0 && active ? "text-sun" : "text-muted"}`}>{active ? money(Math.max(balance, 0)) : "None (not staying)"}</dd>
             {Number(b.refund_due) > 0 && (<><dt className="text-muted">Refund due</dt><dd className="text-right font-semibold text-bad">{money(b.refund_due)}</dd></>)}
           </dl>
           <ul className="mt-4 divide-y divide-line border-t border-line text-sm">
@@ -220,9 +221,11 @@ function Detail() {
           {["held", "confirmed"].includes(b.status) && (
             ask === "cancel" ? (
               <ConfirmBar
-                text={br?.rate_plans?.refundable
-                  ? `Cancel this booking? Free until ${br.rate_plans.free_cancel_hours}h before check-in; after that the first night is kept.`
-                  : "Cancel this booking? This rate is non-refundable, so nothing is refunded."}
+                text={Number(b.amount_paid) <= 0
+                  ? "Cancel this booking? Nothing has been paid, so there's nothing to refund. The room goes back on sale."
+                  : br?.rate_plans?.refundable
+                    ? `Cancel this booking? Full refund until ${br.rate_plans.free_cancel_hours}h before check-in; after that the first night is kept.`
+                    : "Cancel this booking? This rate is non-refundable, so nothing is refunded."}
                 yes="Yes, cancel booking" danger busy={busy} onNo={() => setAsk(null)}
                 onYes={() => { setAsk(null); run("cancel_booking", { p_booking_id: b.id }, (d) => `Cancelled. Refund due: ${money(Number(d.refund_due))}.`); }} />
             ) : (

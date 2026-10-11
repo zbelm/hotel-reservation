@@ -57,6 +57,10 @@ Deno.serve(async (req) => {
   if (!sig.t || !given || !timingSafeEqual(expected, given)) {
     return new Response("Invalid signature", { status: 401 });
   }
+  // Refuse old messages replayed later (PayMongo signs each delivery with the current time)
+  if (Math.abs(Date.now() / 1000 - Number(sig.t)) > 600) {
+    return new Response("Signature too old", { status: 401 });
+  }
 
   const type: string = event.data.attributes.type;
   const resource = event.data.attributes.data;

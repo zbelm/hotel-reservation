@@ -18,7 +18,9 @@ Deno.serve(async (req) => {
   const secretKey = Deno.env.get("PAYMONGO_SECRET_KEY");
   const appUrl = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
   if (!secretKey || !appUrl) {
-    return json({ error: "Payments are not set up yet (missing PAYMONGO_SECRET_KEY or APP_URL)" }, 500);
+    // Say what's missing in the server log only; guests get a plain message
+    console.error("create-checkout: PAYMONGO_SECRET_KEY or APP_URL is not set");
+    return json({ error: "Online payment isn't available right now. You can pay at the hotel instead." }, 503);
   }
 
   const authHeader = req.headers.get("Authorization");

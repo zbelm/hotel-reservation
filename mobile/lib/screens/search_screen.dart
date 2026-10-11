@@ -167,7 +167,7 @@ class _ResultCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(height: 120, width: double.infinity, child: RoomArt(name: room['name'] as String)),
+          SizedBox(height: 120, width: double.infinity, child: RoomArt(name: room['name'] as String, photo: firstPhoto(room['photos']))),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

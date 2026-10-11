@@ -13,7 +13,7 @@ import { useT } from "@/lib/i18n";
 import { fmtDate } from "@/lib/messages";
 import { useRoomDescription } from "@/lib/useRoomText";
 import { Reviews } from "@/components/Reviews";
-import { HOTEL } from "@/lib/hotel";
+import { HOTEL, ONLINE_PAYMENTS } from "@/lib/hotel";
 import type { Offer, RoomType } from "@/lib/types";
 
 export function RoomDetails() {
@@ -139,6 +139,8 @@ export function RoomDetails() {
                       <p className="text-sm text-bad">
                         {!fits ? t.room.tooManyGuests : o.available < 1 ? t.room.soldOut : t.room.minStay(o.min_stay)}
                       </p>
+                    ) : !o.refundable && !ONLINE_PAYMENTS ? (
+                      <p className="text-sm text-muted">{t.room.onlineOnly}</p>
                     ) : (
                       <>
                         <p className="text-sm font-medium text-sun">{o.available <= 2 ? t.room.onlyLeft(o.available) : ""}</p>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { PayNowButton } from "@/components/PayNowButton";
+import { ONLINE_PAYMENTS } from "@/lib/hotel";
 
 export function PaymentCancelled() {
   const { t } = useT();
@@ -17,8 +18,8 @@ export function PaymentCancelled() {
       <p className="mt-3 text-muted">{t.payment.noMoney}</p>
       {!loading && (session ? (
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <PayNowButton bookingId={id} label={t.payment.tryAgain} />
-          <Link href={`/booking?id=${id}`} className="btn-quiet">{t.payment.viewBooking}</Link>
+          {ONLINE_PAYMENTS && id && <PayNowButton bookingId={id} label={t.payment.tryAgain} />}
+          {id ? <Link href={`/booking?id=${id}`} className="btn-quiet">{t.payment.viewBooking}</Link> : <Link href="/bookings" className="btn-quiet">{t.nav.myStays}</Link>}
         </div>
       ) : (
         <p className="mt-6 text-sm text-muted">{t.payment.inApp}</p>

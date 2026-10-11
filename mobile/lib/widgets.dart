@@ -41,12 +41,31 @@ class Counter extends StatelessWidget {
 }
 
 /// Calm placeholder picture for rooms without photos.
+/// A room's photo, or a calm coloured placeholder while it loads or if there isn't one.
 class RoomArt extends StatelessWidget {
-  const RoomArt({super.key, required this.name});
+  const RoomArt({super.key, required this.name, this.photo});
   final String name;
+  final String? photo;
 
   @override
   Widget build(BuildContext context) {
+    final placeholder = _gradient();
+    if (photo == null || photo!.isEmpty) return placeholder;
+    return Semantics(
+      label: name,
+      image: true,
+      child: Image.network(
+        photo!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        loadingBuilder: (context, child, progress) => progress == null ? child : placeholder,
+        errorBuilder: (context, error, stack) => placeholder,
+      ),
+    );
+  }
+
+  Widget _gradient() {
     final hue = name.codeUnits.fold<int>(0, (a, c) => a + c) % 40;
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -176,3 +195,6 @@ class Note extends StatelessWidget {
     );
   }
 }
+
+/// The first photo in a room's photo list, if any
+String? firstPhoto(dynamic photos) => photos is List && photos.isNotEmpty ? '${photos.first}' : null;

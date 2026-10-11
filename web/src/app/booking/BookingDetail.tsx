@@ -30,6 +30,7 @@ export function BookingDetail() {
   const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState("");
   const [payError, setPayError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   const [version, setVersion] = useState(0); // bump to reload
   const userId = session?.user.id;
@@ -60,9 +61,17 @@ export function BookingDetail() {
   }
 
   async function cancel() {
+    setCancelling(true);
     const { data, error } = await supabase().rpc("cancel_booking", { p_booking_id: id });
+    setCancelling(false);
     setConfirming(false);
-    if (error) return setError(error.message);
+    if (error) {
+      setNotice("");
+      setPayError(error.message);
+      load();
+      return;
+    }
+    setPayError("");
     const refund = Number(data?.refund_due ?? 0);
     setNotice(refund > 0 ? t.booking.cancelledRefund(money(refund)) : t.booking.cancelled);
     load();
@@ -140,7 +149,7 @@ export function BookingDetail() {
             <span className="font-display text-2xl font-semibold">{money(b.total)}</span>
           </div>
           <p className="mt-1 text-right text-sm text-muted">
-            {t.booking.paid(money(b.amount_paid))}{balance > 0 && b.status !== "held" ? `, ${t.booking.toPay(money(balance))}` : ""}
+            {t.booking.paid(money(b.amount_paid))}{balance > 0 && ["confirmed", "checked_in"].includes(b.status) ? `, ${t.booking.toPay(money(balance))}` : ""}
           </p>
           {hasReceipt && (
             <div className="mt-4 border-t border-line pt-4 text-right">
@@ -187,7 +196,7 @@ export function BookingDetail() {
               <p className="font-semibold">{t.booking.cancelQ}</p>
               <p className="text-sm text-muted">{Number(b.amount_paid) <= 0 ? t.booking.cancelUnpaid : plan?.refundable ? t.booking.cancelFree(plan.free_cancel_hours) : t.booking.cancelNonRef}</p>
               <div className="flex gap-3">
-                <button className="btn-danger" onClick={cancel}>{t.booking.yesCancel}</button>
+                <button className="btn-danger" onClick={cancel} disabled={cancelling}>{cancelling ? t.booking.cancelling : t.booking.yesCancel}</button>
                 <button className="btn-quiet" onClick={() => setConfirming(false)}>{t.booking.keep}</button>
               </div>
             </div>

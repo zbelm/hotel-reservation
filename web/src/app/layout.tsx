@@ -6,11 +6,23 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { HOTEL } from "@/lib/hotel";
+import { PHOTOS } from "@/lib/photos";
+
+const description = `${HOTEL.name}: twelve rooms near Manila Bay with a rooftop pool. Book direct for the best rate and pay at the hotel.`;
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://hotel-reservation-smoky.vercel.app"),
   title: { default: HOTEL.name, template: `%s · ${HOTEL.name}` },
-  description: `${HOTEL.name}: twelve rooms on Manila Bay. Book direct and pay with GCash, Maya or card.`,
+  description,
   manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  openGraph: {
+    type: "website",
+    siteName: HOTEL.name,
+    title: HOTEL.name,
+    description,
+    images: [{ url: PHOTOS.exterior.src(1200), width: 1200, height: 630, alt: PHOTOS.exterior.alt }],
+  },
 };
 
 export const viewport: Viewport = {

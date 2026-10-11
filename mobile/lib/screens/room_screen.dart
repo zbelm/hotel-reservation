@@ -57,7 +57,7 @@ class _RoomScreenState extends State<RoomScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: SizedBox(height: 180, child: RoomArt(name: room['name'] as String)),
+                child: SizedBox(height: 180, child: RoomArt(name: room['name'] as String, photo: firstPhoto(room['photos']))),
               ),
               const SizedBox(height: 16),
               if ((isFil ? room['description_fil'] ?? room['description'] : room['description']) != null)

@@ -20,7 +20,7 @@ const en = {
     `${bed ?? ""} bed, ${size ?? "?"} m², sleeps ${enPlural(adults, "adult")}${children ? ` and ${enPlural(children, "child", "children")}` : ""}`,
 
   status: {
-    held: "Awaiting payment",
+    held: "On hold, not confirmed",
     confirmed: "Confirmed",
     checked_in: "Checked in",
     checked_out: "Completed",
@@ -136,6 +136,7 @@ const en = {
     minStay: (n: number) => `Needs a stay of ${n} or more nights`,
     onlyLeft: (n: number) => `Only ${n} left`,
     reserve: "Reserve this rate",
+    onlineOnly: "This rate is paid online, which isn't available yet. Choose a Flexible rate to pay at the hotel.",
     notFound: "This room type no longer exists.",
   },
 
@@ -176,6 +177,7 @@ const en = {
     onlineOnly: "This rate has to be paid online, and online payment isn't available yet. Go back and choose a Flexible rate to pay at the hotel.",
     confirmHotel: (total: string) => `Confirm booking, pay ${total} at the hotel`,
     confirming: "Confirming your room…",
+    chooseAnotherRate: "Choose a Flexible rate to continue",
   },
 
   login: {
@@ -279,6 +281,7 @@ const en = {
     cancelNonRef: "This rate is non-refundable, so no money will be returned.",
     cancelUnpaid: "Nothing has been paid, so there's nothing to refund. The room is released for other guests.",
     yesCancel: "Yes, cancel",
+    cancelling: "Cancelling…",
     keep: "Keep booking",
     cancelled: "Booking cancelled.",
     cancelledRefund: (amount: string) => `Booking cancelled. A refund of ${amount} will be sent to your original payment method.`,
@@ -387,7 +390,7 @@ const fil: Messages = {
     `${bed ?? ""} na kama, ${size ?? "?"} m², kasya ang ${filCount(adults, "matanda")}${children ? ` at ${filCount(children, "bata")}` : ""}`,
 
   status: {
-    held: "Naghihintay ng bayad",
+    held: "Nakahawak, hindi pa kumpirmado",
     confirmed: "Kumpirmado",
     checked_in: "Naka-check in",
     checked_out: "Tapos na",
@@ -503,6 +506,7 @@ const fil: Messages = {
     minStay: (n) => `Kailangang ${n} gabi o higit pa`,
     onlyLeft: (n) => `${n} na lang ang natitira`,
     reserve: "I-reserve ang rate na ito",
+    onlineOnly: "Online binabayaran ang rate na ito, at wala pa ito. Pumili ng Flexible na rate para magbayad sa hotel.",
     notFound: "Wala na ang ganitong uri ng kuwarto.",
   },
 
@@ -543,6 +547,7 @@ const fil: Messages = {
     onlineOnly: "Kailangang bayaran online ang rate na ito, at wala pang online na bayad. Bumalik at pumili ng Flexible na rate para magbayad sa hotel.",
     confirmHotel: (total) => `Kumpirmahin, bayaran ang ${total} sa hotel`,
     confirming: "Kinukumpirma ang kuwarto mo…",
+    chooseAnotherRate: "Pumili ng Flexible na rate para magpatuloy",
   },
 
   login: {
@@ -646,6 +651,7 @@ const fil: Messages = {
     cancelNonRef: "Non-refundable ang rate na ito, kaya walang perang maibabalik.",
     cancelUnpaid: "Wala pang bayad, kaya walang ire-refund. Ibibigay ang kuwarto sa ibang bisita.",
     yesCancel: "Oo, kanselahin",
+    cancelling: "Kinakansela…",
     keep: "Huwag kanselahin",
     cancelled: "Nakansela na ang booking.",
     cancelledRefund: (amount) => `Nakansela na ang booking. Ipapadala ang refund na ${amount} sa orihinal na paraan ng pagbayad.`,

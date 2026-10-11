@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { messages, type Lang, type Messages } from "./messages";
 import { content, type HotelContent } from "./hotel";
 
@@ -36,7 +36,12 @@ export function setLang(lang: Lang) {
 }
 
 export function useLang(): Lang {
-  return useSyncExternalStore(subscribe, read, () => "en");
+  const lang = useSyncExternalStore<Lang>(subscribe, read, () => "en");
+  // Keep <html lang> right after a reload too, so screen readers use the right voice
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+  return lang;
 }
 
 export function useT(): { lang: Lang; t: Messages; hotel: HotelContent } {

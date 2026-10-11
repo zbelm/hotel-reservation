@@ -128,7 +128,7 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
           <ul className="grid gap-3 md:hidden">
             {rows.map((b) => {
               const br = b.booking_rooms?.[0];
-              const balance = Number(b.total) - Number(b.amount_paid);
+              const balance = owes(b);
               const step = nextStep(b, today);
               return (
                 <li key={b.id}>
@@ -165,7 +165,7 @@ function BookingList({ id, title, rows, empty, today }: { id?: string; title: Re
               <tbody className="divide-y divide-line">
                 {rows.map((b) => {
                   const br = b.booking_rooms?.[0];
-                  const balance = Number(b.total) - Number(b.amount_paid);
+                  const balance = owes(b);
                   const step = nextStep(b, today);
                   return (
                     <tr key={b.id} className="hover:bg-sand/60">
@@ -384,7 +384,11 @@ function WalkIn() {
     supabase().rpc("room_type_offers", { p_room_type_id: form.type, p_check_in: checkIn, p_check_out: checkOut })
       .then(({ data, error }) => {
         if (!active) return;
-        if (error) return setError(error.message);
+        if (error) {
+          setError(error.message);
+          setOffers({ key: offerKey, list: [] });
+          return;
+        }
         const list = (data as Offer[]) ?? [];
         setOffers({ key: offerKey, list });
         setForm((f) => ({ ...f, plan: list.find((o) => o.rate_plan_id === f.plan && o.bookable)?.rate_plan_id ?? list.find((o) => o.bookable)?.rate_plan_id ?? "" }));
@@ -482,4 +486,9 @@ function WalkIn() {
       </div>
     </form>
   );
+}
+
+// Money still to collect: only on stays that are going ahead (not cancelled, expired or no-shows)
+function owes(b: Booking): number {
+  return ["confirmed", "checked_in", "checked_out"].includes(b.status) ? Math.max(Number(b.total) - Number(b.amount_paid), 0) : 0;
 }

@@ -62,6 +62,9 @@ export function Header() {
             <>
               <Link href="/bookings" className="btn-quiet ml-1 px-3.5! py-2! sm:hidden">{t.nav.myStays}</Link>
               <button onClick={signOut} className="btn-quiet ml-1 hidden px-3.5! py-2! sm:inline-flex sm:px-4!">{t.nav.signOut}</button>
+              <button onClick={signOut} aria-label={t.nav.signOut} title={t.nav.signOut} className="ml-1 inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-paper text-muted sm:hidden">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+              </button>
             </>
           ) : (
             <Link href="/login" className="btn-quiet ml-1 px-3.5! py-2! sm:px-4!">{t.nav.signIn}</Link>

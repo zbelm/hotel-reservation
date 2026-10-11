@@ -1,15 +1,15 @@
 "use client";
 
-import { CapizWindow } from "@/components/CapizHero";
 import { Chevron, FacilityGlyph } from "@/components/Icons";
 import { Reviews } from "@/components/Reviews";
 import { SearchForm } from "@/components/SearchForm";
 import { RoomsPreview } from "./RoomsPreview";
 import { HOTEL, mapEmbedUrl, mapsUrl } from "@/lib/hotel";
+import { PHOTOS } from "@/lib/photos";
 import { useT } from "@/lib/i18n";
 
 export function HomeContent() {
-  const { t, hotel } = useT();
+  const { t, hotel, lang } = useT();
   return (
     <>
       <section className="relative overflow-hidden bg-bay text-on-bay">
@@ -23,7 +23,17 @@ export function HomeContent() {
               {t.home.intro}
             </p>
           </div>
-          <CapizWindow className="mx-auto max-w-[17rem] sm:max-w-xs lg:max-w-none" />
+          <figure className="hero-rise relative mx-auto aspect-[4/5] w-full max-w-[20rem] overflow-hidden rounded-[2rem] shadow-2xl ring-1 ring-white/15 sm:max-w-sm lg:max-w-none" style={{ "--delay": "0.12s" } as React.CSSProperties}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Unsplash serves the right size */}
+            <img
+              src={PHOTOS.exterior.src(900)}
+              srcSet={`${PHOTOS.exterior.src(600)} 600w, ${PHOTOS.exterior.src(900)} 900w, ${PHOTOS.exterior.src(1300)} 1300w`}
+              sizes="(min-width: 1024px) 400px, 90vw"
+              alt={lang === "fil" ? PHOTOS.exterior.altFil : PHOTOS.exterior.alt}
+              className="h-full w-full object-cover"
+              fetchPriority="high"
+            />
+          </figure>
         </div>
       </section>
 
@@ -59,7 +69,16 @@ export function HomeContent() {
 
         <section id="facilities" className="border-t border-line py-20">
           <h2 className="text-3xl font-semibold sm:text-4xl">{t.home.facilities}</h2>
-          <ul className="mt-10 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2">
+            {([[PHOTOS.pool, hotel.facilities[0]?.name], [PHOTOS.cafe, hotel.facilities[1]?.name]] as const).map(([photo, label]) => (
+              <figure key={photo.id} className="lift relative aspect-[16/10] overflow-hidden rounded-2xl">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo.src(1000)} alt={lang === "fil" ? photo.altFil : photo.alt} loading="lazy" className="lift-art h-full w-full object-cover" />
+                <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-5 pb-4 pt-12 font-display text-xl font-semibold text-white">{label}</figcaption>
+              </figure>
+            ))}
+          </div>
+          <ul className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
             {hotel.facilities.map((f) => (
               <li key={f.icon}>
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sea-tint text-sea"><FacilityGlyph icon={f.icon} /></span>

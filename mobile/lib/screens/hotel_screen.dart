@@ -26,6 +26,42 @@ class HotelScreen extends StatelessWidget {
           const SizedBox(height: 4),
           Text(hotelAddress, style: TextStyle(color: muted)),
           const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: RoomArt(name: tr("The hotel's white façade with palm trees", 'Ang puting harapan ng hotel na may mga puno ng niyog'), photo: hotelPhotos.exterior),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            for (final (photo, label) in [(hotelPhotos.pool, tr('Rooftop pool', 'Rooftop pool')), (hotelPhotos.cafe, tr('Café', 'Café'))]) ...[
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: Stack(fit: StackFit.expand, children: [
+                      RoomArt(name: label, photo: photo),
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(10, 18, 10, 8),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black54]),
+                          ),
+                          child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+              if (photo == hotelPhotos.pool) const SizedBox(width: 10),
+            ],
+          ]),
+          const SizedBox(height: 20),
           Text(h.aboutHeading, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.3)),
           for (final p in h.about) ...[
             const SizedBox(height: 10),

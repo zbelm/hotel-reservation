@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { PHOTO_CREDITS } from "@/lib/photos";
 import { HOTEL, mapsUrl } from "@/lib/hotel";
 import { useT } from "@/lib/i18n";
 
@@ -38,7 +39,10 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10">
-        <p className="mx-auto max-w-6xl px-4 py-5 text-sm text-on-bay-muted sm:px-6">{t.footer.bottom(HOTEL.checkIn, HOTEL.checkOut)}</p>
+        <div className="mx-auto max-w-6xl px-4 py-5 text-sm text-on-bay-muted sm:px-6">
+          <p>{t.footer.bottom(HOTEL.checkIn, HOTEL.checkOut)}</p>
+          <p className="mt-1 text-xs opacity-80">{PHOTO_CREDITS}</p>
+        </div>
       </div>
     </footer>
   );

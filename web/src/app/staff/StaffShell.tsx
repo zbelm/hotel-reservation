@@ -63,7 +63,7 @@ export function currentTab(role: Role | undefined, asked: string | null): TabKey
 type Counts = { arrivals: number; departures: number; dirty: number };
 
 export function StaffShell({ children }: { children: ReactNode }) {
-  const { session, profile, loading, isStaff } = useRequireAuth();
+  const { session, profile, loading, profileLoading, isStaff } = useRequireAuth();
   const user = session?.user;
   const router = useRouter();
   const pathname = usePathname();
@@ -122,7 +122,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      {loading || !session || !profile ? (
+      {loading || !session || profileLoading ? (
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6"><Spinner /></div>
       ) : !isStaff ? (
         <div className="mx-auto w-full max-w-2xl px-4 py-12 sm:px-6">
@@ -142,6 +142,9 @@ export function StaffShell({ children }: { children: ReactNode }) {
                 <Count n={badge(i.key)} label={badgeLabel(i.key)} inverted={active === i.key} />
               </Link>
             ))}
+            {/* The header has no room for these on phones */}
+            <Link href="/password" className="inline-flex shrink-0 items-center rounded-full border border-dashed border-line px-3.5 py-2 text-sm text-muted sm:hidden">Password</Link>
+            <Link href="/" className="inline-flex shrink-0 items-center rounded-full border border-dashed border-line px-3.5 py-2 text-sm text-muted sm:hidden">Website</Link>
           </nav>
 
           {/* Desktop: sections grouped by job */}

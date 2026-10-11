@@ -50,3 +50,8 @@ update public.room_types set description_fil = case id
   when '00000000-0000-0000-0000-0000000000a3' then 'Dalawang silid, dalawang kama at sala. Kasya ang pamilyang may lima.'
   else description_fil end
 where description_fil is null;
+
+-- Sample photos (free from Unsplash, unsplash.com/license). Replace with the hotel's own.
+update public.room_types set photos = array['https://images.unsplash.com/photo-1631049421450-348ccd7f8949?w=1400&q=70&auto=format&fit=crop'] where name = 'Standard Queen' and photos = '{}';
+update public.room_types set photos = array['https://images.unsplash.com/photo-1702255489644-392758161f1f?w=1400&q=70&auto=format&fit=crop'] where name = 'Deluxe King' and photos = '{}';
+update public.room_types set photos = array['https://images.unsplash.com/photo-1680210851458-b7dc5685e06e?w=1400&q=70&auto=format&fit=crop'] where name = 'Family Suite' and photos = '{}';

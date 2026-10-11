@@ -3,7 +3,7 @@ import { Page } from "@/components/Page";
 import { Spinner } from "@/components/ui";
 import { SetPassword } from "./SetPassword";
 
-export const metadata = { title: "Your password" };
+export const metadata = { title: "Your password", robots: { index: false, follow: false } };
 
 export default function PasswordPage() {
   return (

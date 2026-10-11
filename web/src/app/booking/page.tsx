@@ -3,7 +3,7 @@ import { Page } from "@/components/Page";
 import { Spinner } from "@/components/ui";
 import { BookingDetail } from "./BookingDetail";
 
-export const metadata = { title: "Booking" };
+export const metadata = { title: "Booking", robots: { index: false, follow: false } };
 
 export default function RoutePage() {
   return (

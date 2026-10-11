@@ -3,7 +3,7 @@ import { Page } from "@/components/Page";
 import { Spinner } from "@/components/ui";
 import { PaymentCancelled } from "./PaymentCancelled";
 
-export const metadata = { title: "Payment not completed" };
+export const metadata = { title: "Payment not completed", robots: { index: false, follow: false } };
 
 export default function RoutePage() {
   return (

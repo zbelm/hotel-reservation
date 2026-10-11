@@ -10,8 +10,15 @@ import { useT } from "@/lib/i18n";
 // Turn on in Vercel with NEXT_PUBLIC_GOOGLE_LOGIN=1 after enabling Google in Supabase Auth → Providers
 const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1";
 
+// Only ever return to a page on this site (blocks tricks like "//evil.com" or "/\\evil.com")
 function safeNext(value: string | null): string {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/bookings";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/bookings";
+  try {
+    const url = new URL(value, "https://hotel.local");
+    return url.origin === "https://hotel.local" ? url.pathname + url.search + url.hash : "/bookings";
+  } catch {
+    return "/bookings";
+  }
 }
 
 export function Login() {

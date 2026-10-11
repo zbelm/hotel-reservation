@@ -39,14 +39,17 @@ export function TeamTab() {
   }, []);
   useEffect(load, [load]);
 
-  async function setRole(email: string, role: Role, name?: string) {
+  async function setRole(email: string, role: Role, name?: string): Promise<boolean> {
     setBusy(email);
     setError("");
     setNotice("");
     const { data, error } = await supabase().rpc("set_staff_role", { p_email: email, p_role: role, p_full_name: name ?? null });
     setBusy(null);
     setConfirmRemove(null);
-    if (error) return setError(error.message);
+    if (error) {
+      setError(error.message);
+      return false;
+    }
     const status = (data as { status: string }).status;
     setNotice(
       status === "invited"
@@ -56,12 +59,13 @@ export function TeamTab() {
           : `${email} is now ${ROLE_LABEL[role].toLowerCase()}.`,
     );
     load();
+    return true;
   }
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    await setRole(form.email.trim(), form.role, form.name.trim());
-    setForm({ email: "", name: "", role: form.role });
+    // Keep what was typed if it didn't work, so it can be fixed and sent again
+    if (await setRole(form.email.trim(), form.role, form.name.trim())) setForm({ email: "", name: "", role: form.role });
   }
 
   const choices = STAFF_ROLES.filter((r) => isAdmin || r.value !== "admin");
@@ -91,7 +95,7 @@ export function TeamTab() {
           </div>
           <button className="btn-primary" disabled={busy !== null}>{busy === form.email.trim() ? "Adding…" : "Add"}</button>
           <p className="text-sm text-muted sm:col-span-4">
-            They sign in on the website with this email (no password needed). If they already have an account, access starts right away.
+            They sign in on the website with this email: the first time with an emailed link, then they can set a password. If they already have a confirmed account, access starts right away.
           </p>
         </form>
       </section>

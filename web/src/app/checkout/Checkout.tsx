@@ -28,6 +28,7 @@ export function Checkout() {
   const children = Number(params.get("children") ?? 0);
 
   const [roomName, setRoomName] = useState("");
+  const [roomPhoto, setRoomPhoto] = useState<string | undefined>();
   const [offer, setOffer] = useState<Offer | null>(null);
   // null = not typed yet, so show what we know from the account
   const [typedName, setName] = useState<string | null>(null);
@@ -46,11 +47,12 @@ export function Checkout() {
   useEffect(() => {
     const sb = supabase();
     Promise.all([
-      sb.from("room_types").select("name").eq("id", roomTypeId).maybeSingle(),
+      sb.from("room_types").select("name, photos").eq("id", roomTypeId).maybeSingle(),
       sb.rpc("room_type_offers", { p_room_type_id: roomTypeId, p_check_in: checkIn, p_check_out: checkOut }),
     ]).then(([r, o]) => {
       if (r.error || o.error) return setError((r.error ?? o.error)!.message);
       setRoomName(r.data?.name ?? "");
+      setRoomPhoto((r.data?.photos as string[] | undefined)?.[0]);
       const match = (o.data as Offer[] | null)?.find((x) => x.rate_plan_id === planId) ?? null;
       if (!match) setError("RATE_GONE");
       setOffer(match);
@@ -231,13 +233,14 @@ export function Checkout() {
           <button className="btn-primary py-3.5! text-base" disabled={busy || !offer || !payBy}>
             {payBy === "hotel"
               ? busy ? t.checkout.confirming : t.checkout.confirmHotel(offer ? money(offer.total) : "")
+              : !payBy ? t.checkout.chooseAnotherRate
               : busy ? t.checkout.holding : offer ? t.checkout.pay(money(offer.total)) : t.checkout.payPlain}
           </button>
         </form>
 
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <div className="card overflow-hidden">
-            <div className="aspect-[16/9]"><RoomArt name={roomName || "Room"} /></div>
+            <div className="aspect-[16/9]"><RoomArt name={roomName || "Room"} photo={roomPhoto} /></div>
             <div className="p-6">
               <h2 className="text-2xl font-semibold">{roomName || "…"}</h2>
               <p className="text-muted">{offer?.name}</p>

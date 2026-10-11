@@ -36,7 +36,8 @@ Guests search, book and pay for rooms on the web or the mobile app. Staff run ch
    8. `supabase/migrations/20261008000008_guest_id_storage.sql` (private storage for guest IDs)
    9. `supabase/migrations/20261008000009_staff_accounts.sql` (adding staff from the Team page)
    10. `supabase/migrations/20261011000010_pay_at_hotel_and_fixes.sql` (pay at the hotel, plus security and refund fixes)
-   11. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
+   11. `supabase/migrations/20261011000011_qa_fixes_and_photos.sql` (database checker fixes, room photos; hides Non-refundable rates until online payment is on)
+   12. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
 3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
@@ -70,7 +71,7 @@ where id = (select id from auth.users where email = 'you@example.com');
 
 **Pay at the hotel** works with no setup. On Flexible rates guests choose "Pay at the hotel", the booking is confirmed straight away, and the front desk records the cash, card, GCash or Maya payment on the booking page when they arrive. Non-refundable rates need online payment. Each guest can have at most 3 unpaid pay-at-hotel bookings, and unpaid confirmed bookings become no-shows at check-out time the day after arrival.
 
-**Online payment (optional): PayMongo.** Once the steps below are done, add `NEXT_PUBLIC_ONLINE_PAYMENTS=1` in Vercel (and build the app with `--dart-define=ONLINE_PAYMENTS=true`) so guests also see "Pay online now".
+**Online payment (optional): PayMongo.** Once the steps below are done, add `NEXT_PUBLIC_ONLINE_PAYMENTS=1` in Vercel (and build the app with `--dart-define=ONLINE_PAYMENTS=true`) so guests also see "Pay online now", and switch the Non-refundable rates back on in the SQL editor: `update rate_plans set is_active = true where not refundable;`
 
 
 1. Sign up at [paymongo.com](https://www.paymongo.com). No setup or monthly fee; you pay a percentage per successful payment. Use **test keys** (`sk_test_...`) until you're ready to go live.
@@ -134,7 +135,7 @@ Publishing costs US$25 once for Google Play and US$99 a year for the Apple App S
 
 ## Tests
 
-The booking rules have 20 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
+The booking rules have 21 groups of database tests (holds, sold-out, payments, pay at the hotel, refunds, front desk, permissions, calendar prices, date changes, ID upload, reviews, dashboard, staff accounts). They run on a plain local PostgreSQL:
 
 ```bash
 PGHOST=localhost PGUSER=postgres ./supabase/tests/run_tests.sh

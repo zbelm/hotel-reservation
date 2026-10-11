@@ -647,4 +647,30 @@ do $$ begin
   raise notice 'PASS 20 pay at hotel and QA fixes';
 end $$;
 
+-- 21. Chose pay-at-hotel, then an older online payment went through: it counts as paid
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ declare b json; begin
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a1',
+        (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible'),
+        current_date + 120, current_date + 121, 1, 0, 'Ben Reyes', 'ben@example.com');
+  insert into t values ('late_online', b->>'id');
+end $$;
+reset role;
+insert into public.payments (booking_id, amount, provider, provider_ref, status)
+select v::uuid, (select total from public.bookings where id = v::uuid), 'paymongo', 'cs_late_online', 'pending' from t where k = 'late_online';
+set role authenticated;
+do $$ begin perform public.choose_pay_at_hotel((select v::uuid from t where k = 'late_online')); end $$;
+reset role;
+set role service_role;
+do $$ declare r text; bid uuid := (select v::uuid from t where k = 'late_online'); begin
+  r := public.confirm_payment('cs_late_online', (select total from public.bookings where id = bid), 'gcash');
+  assert r = 'confirmed', format('expected confirmed, got %s', r);
+  assert (select refund_due from public.bookings where id = bid) = 0, 'must not be flagged for refund';
+  assert (select payment_option from public.bookings where id = bid) = 'online';
+  assert (select amount_paid = total from public.bookings where id = bid), 'should be fully paid';
+  raise notice 'PASS 21 online payment after choosing pay at hotel';
+end $$;
+reset role;
+
 \echo 'All booking tests passed.'

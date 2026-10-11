@@ -13,7 +13,8 @@ export function useRequireAuth() {
 
   useEffect(() => {
     if (!auth.loading && !auth.session) {
-      const here = params.size ? `${pathname}?${params}` : pathname;
+      const query = params.toString();
+      const here = query ? `${pathname}?${query}` : pathname;
       router.replace(`/login?next=${encodeURIComponent(here)}`);
     }
   }, [auth.loading, auth.session, pathname, params, router]);

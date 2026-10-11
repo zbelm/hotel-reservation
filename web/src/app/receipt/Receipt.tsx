@@ -103,7 +103,7 @@ export function Receipt() {
               {payments.map((p) => (
                 <li key={p.id} className="flex justify-between gap-4 py-2">
                   <span>{new Date(p.paid_at ?? p.created_at).toLocaleDateString(t.locale, { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" })}
-                    {" · "}{(p.method ?? p.provider).toUpperCase()}</span>
+                    {" · "}{methodLabel(p.method ?? p.provider)}</span>
                   <span>{money(p.amount)}</span>
                 </li>
               ))}
@@ -118,4 +118,12 @@ export function Receipt() {
       </article>
     </>
   );
+}
+
+const METHOD: Record<string, string> = {
+  cash: "Cash", card: "Card", gcash: "GCash", maya: "Maya", paymaya: "Maya", grab_pay: "GrabPay", qrph: "QR Ph",
+  bank_transfer: "Bank transfer", paymongo: "Online", front_desk: "Front desk",
+};
+function methodLabel(m: string): string {
+  return METHOD[m] ?? m.charAt(0).toUpperCase() + m.slice(1).replaceAll("_", " ");
 }

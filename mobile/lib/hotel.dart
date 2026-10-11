@@ -190,3 +190,10 @@ const _fil = HotelContent(
   },
   requestIdeas: ['Mataas na palapag', 'Tahimik na kuwarto', 'Dagdag na unan', 'Kuna para sa sanggol', 'May ipinagdiriwang'],
 );
+
+// Free photos from Unsplash (unsplash.com/license), same as the website. Swap for the hotel's own.
+const hotelPhotos = (
+  exterior: 'https://images.unsplash.com/photo-1717916435055-311684eb773b?w=1200&q=70&auto=format&fit=crop',
+  pool: 'https://images.unsplash.com/photo-1765741836851-8071475d4911?w=1000&q=70&auto=format&fit=crop',
+  cafe: 'https://images.unsplash.com/photo-1699559510594-12624b72312c?w=1000&q=70&auto=format&fit=crop',
+);

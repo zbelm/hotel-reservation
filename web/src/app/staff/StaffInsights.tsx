@@ -248,7 +248,7 @@ function SourceBars({ by }: { by: Summary["by_source"] }) {
 type CalRoom = { id: string; number: string; floor: number | null; room_type_id: string; room_types: { name: string } | null };
 const SPAN = 14;
 const STATUS_STYLE: Record<string, { bar: string; label: string }> = {
-  held: { bar: "bg-mango text-[#13303b]", label: "Awaiting payment" },
+  held: { bar: "bg-mango text-[#13303b]", label: "On hold" },
   confirmed: { bar: "bg-sea text-white", label: "Confirmed" },
   checked_in: { bar: "bg-bay text-on-bay ring-1 ring-on-bay/20", label: "In house" },
   checked_out: { bar: "bg-line text-muted", label: "Checked out" },
