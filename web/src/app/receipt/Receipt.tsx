@@ -90,7 +90,7 @@ export function Receipt() {
             <tr><td className="pt-3 font-semibold">{t.receipt.total}</td><td className="pt-3 text-right font-display text-xl font-semibold">{money(b.total)}</td></tr>
             <tr><td className="pt-1 text-muted">{t.receipt.paid}</td><td className="pt-1 text-right">{money(b.amount_paid)}</td></tr>
             {Number(b.refund_due) > 0 && <tr><td className="pt-1 text-muted">{t.receipt.refund}</td><td className="pt-1 text-right">{money(b.refund_due)}</td></tr>}
-            {balance > 0 && <tr><td className="pt-1 font-semibold">{t.receipt.balance}</td><td className="pt-1 text-right font-semibold">{money(balance)}</td></tr>}
+            {balance > 0 && ["confirmed", "checked_out"].includes(b.status) && <tr><td className="pt-1 font-semibold">{t.receipt.balance}</td><td className="pt-1 text-right font-semibold">{money(balance)}</td></tr>}
           </tfoot>
         </table>
 
