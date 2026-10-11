@@ -90,9 +90,9 @@ export function DashboardTab() {
         <>
           <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4" aria-label="Summary">
             <Tile label="Occupancy" value={`${Math.round(totals.occupancy * 100)}%`} note={`${totals.sold} of ${totals.capacity} room-nights sold`} />
-            <Tile label="Room revenue" value={compactPeso(totals.revenue)} note="Confirmed, in-house and completed stays" />
+            <Tile label="Room revenue" value={compactPeso(totals.revenue)} note="Confirmed and completed stays" />
             <Tile label="Average nightly rate" value={totals.sold ? money(totals.adr) : "—"} note="Room revenue ÷ room-nights sold" />
-            <Tile label="Arrivals" value={String(totals.arrivals)} note="Guests checking in in this range" />
+            <Tile label="Arrivals" value={String(totals.arrivals)} note="Guests due to arrive in this range" />
           </section>
 
           <ColumnChart
@@ -106,7 +106,7 @@ export function DashboardTab() {
 
           <ColumnChart
             title="Room revenue by night"
-            caption="Nightly prices of confirmed, in-house and completed stays."
+            caption="Nightly prices of confirmed and completed stays."
             data={days.map((d) => ({ day: d.day, value: d.revenue, tip: money(d.revenue) }))}
             {...niceScale(Math.max(...days.map((d) => d.revenue), 1))}
             tickLabel={compactPeso}
@@ -226,7 +226,7 @@ function SourceBars({ by }: { by: Summary["by_source"] }) {
   const rows = [
     { label: "Website", n: by.web },
     { label: "Mobile app", n: by.mobile },
-    { label: "Front desk", n: by.front_desk },
+    { label: "Walk-in or phone", n: by.front_desk },
   ];
   const top = Math.max(1, ...rows.map((r) => r.n));
   return (
