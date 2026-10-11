@@ -5,7 +5,7 @@
 const supabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: 'https://jmiskdtkbyrmcgbtltme.supabase.co');
 const supabaseAnonKey =
     String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: 'sb_publishable_cic6H4sfuz6_lzv44ZBsAw_J2yluzF8');
-const hotelName = String.fromEnvironment('HOTEL_NAME', defaultValue: 'Sample Bay Hotel');
+const hotelName = String.fromEnvironment('HOTEL_NAME', defaultValue: 'Macrotel');
 
 /// Where the sign-in email link sends the guest. Android opens the app for this address
 /// (see android/app/src/main/AndroidManifest.xml); it is also listed under

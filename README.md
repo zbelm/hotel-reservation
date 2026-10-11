@@ -55,7 +55,7 @@ where id = (select id from auth.users where email = 'you@example.com');
 
 **Adding staff:** after that, open **Staff → Team** on the website. Add each person's email; everyone added is an admin. If they already have a confirmed account, access starts straight away; if not, it starts the first time they sign in with that email and confirm it. Nobody can remove their own access.
 
-**Your hotel's information:** the text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is in `web/src/lib/hotel.ts` for the website and `mobile/lib/hotel.dart` for the app, each in English and Filipino. It ships with sample content for "Sample Bay Hotel": replace it with your real details before taking bookings, and keep the two languages saying the same thing. The rest of the website's wording is in `web/src/lib/messages.ts`. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); put the Filipino room description in `room_types.description_fil`, and add photo URLs to `room_types.photos` to replace the illustrations.
+**Your hotel's information:** the text about the hotel (about, facilities, getting here, house rules, cancellation, FAQ, map pin) is in `web/src/lib/hotel.ts` for the website and `mobile/lib/hotel.dart` for the app, each in English and Filipino. It ships with sample content for "Macrotel": replace it with your real details before taking bookings, and keep the two languages saying the same thing. The rest of the website's wording is in `web/src/lib/messages.ts`. Room names, descriptions, amenities and prices live in the database (`room_types` and `rate_plans`); put the Filipino room description in `room_types.description_fil`, and add photo URLs to `room_types.photos` to replace the illustrations.
 
 ### 2. Payments
 
@@ -91,7 +91,7 @@ where id = (select id from auth.users where email = 'you@example.com');
 3. Environment variables: `web/.env.production` already holds this project's public Supabase URL and publishable key, so the build works as is. To point at a different Supabase project, edit that file or set these in Vercel (they override it):
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - Optional: `NEXT_PUBLIC_HOTEL_NAME`, `NEXT_PUBLIC_HOTEL_ADDRESS`, `NEXT_PUBLIC_HOTEL_PHONE`
+   - Optional: `NEXT_PUBLIC_HOTEL_ADDRESS`, `NEXT_PUBLIC_HOTEL_PHONE`, `NEXT_PUBLIC_HOTEL_EMAIL` (the hotel's name is set in `web/src/lib/hotel.ts`)
 4. Deploy. Use that address as `APP_URL` in step 2 and as the Site URL in step 1.
 
 > Vercel's free Hobby plan is for non-commercial use. It's fine for building and testing; a hotel taking real bookings should move to Vercel Pro or host the `web` folder on Cloudflare Pages, which allows business use on its free plan.

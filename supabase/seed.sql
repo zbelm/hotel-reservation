@@ -1,8 +1,8 @@
 -- Sample hotel so the apps have something to show. Safe to edit or delete.
 
 insert into public.properties (id, name, address, phone, email)
-values ('00000000-0000-0000-0000-000000000001', 'Sample Bay Hotel',
-        '123 Seaside Avenue, Pasay City, Metro Manila', '+63 2 8123 4567', 'stay@samplebayhotel.ph')
+values ('00000000-0000-0000-0000-000000000001', 'Macrotel',
+        '123 Seaside Avenue, Pasay City, Metro Manila', '+63 2 8123 4567', 'stay@macrotel.ph')
 on conflict (id) do nothing;
 
 insert into public.room_types

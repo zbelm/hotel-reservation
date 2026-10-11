@@ -14,7 +14,7 @@ if internet not in xml:
     xml = xml.replace("<application", f"{internet}\n    <application", 1)
 
 # Name under the app icon
-xml = xml.replace('android:label="hotel_reservation"', 'android:label="Sample Bay Hotel"')
+xml = xml.replace('android:label="hotel_reservation"', 'android:label="Macrotel"')
 
 # Tapping the sign-in link in the email opens the app (matches authRedirect in lib/config.dart)
 deep_link = """

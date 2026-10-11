@@ -1,6 +1,6 @@
 {
-  "name": "Sample Bay Hotel",
-  "short_name": "Sample Bay",
+  "name": "Macrotel",
+  "short_name": "Macrotel",
   "description": "Book and manage your stay.",
   "start_url": "/",
   "display": "standalone",

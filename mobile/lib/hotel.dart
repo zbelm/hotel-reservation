@@ -8,7 +8,7 @@ import 'i18n.dart';
 
 const hotelAddress = '123 Seaside Avenue, Pasay City, Metro Manila';
 const hotelPhone = '+63 2 8123 4567';
-const hotelEmail = 'stay@samplebayhotel.ph';
+const hotelEmail = 'stay@macrotel.ph';
 const _lat = 14.5352, _lng = 120.9822;
 final mapsUrl = Uri.parse('https://www.google.com/maps/search/?api=1&query=$_lat,$_lng');
 final phoneUrl = Uri.parse('tel:${hotelPhone.replaceAll(' ', '')}');

@@ -1,4 +1,4 @@
-# Sample Bay Hotel guest app
+# Macrotel guest app
 
 Flutter app for guests: browse the hotel, pick dates on a calendar that shows nightly prices, book and pay, and manage stays (QR code, change dates, upload an ID before arrival, receipt as a PDF, review after check-out). English and Filipino, switched with the FIL / EN button.
 

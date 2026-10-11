@@ -1,13 +1,14 @@
 // Everything guests read about the hotel lives here, in English and Filipino, so it can be
-// changed in one place. This is sample content for "Sample Bay Hotel": replace it with your
+// changed in one place. This is sample content for "Macrotel": replace it with your
 // hotel's real details before taking real bookings (facilities, prices, distances and rules
 // are placeholders). Keep the two languages saying the same thing.
 
 export const HOTEL = {
-  name: process.env.NEXT_PUBLIC_HOTEL_NAME ?? "Sample Bay Hotel",
+  // The name also appears in the "about" text below, so it is set here rather than in Vercel
+  name: "Macrotel",
   address: process.env.NEXT_PUBLIC_HOTEL_ADDRESS ?? "123 Seaside Avenue, Pasay City, Metro Manila",
   phone: process.env.NEXT_PUBLIC_HOTEL_PHONE ?? "+63 2 8123 4567",
-  email: process.env.NEXT_PUBLIC_HOTEL_EMAIL ?? "stay@samplebayhotel.ph",
+  email: process.env.NEXT_PUBLIC_HOTEL_EMAIL ?? "stay@macrotel.ph",
   checkIn: "2:00 PM",
   checkOut: "12:00 PM",
   // Map pin (latitude, longitude)
@@ -35,7 +36,7 @@ const en: HotelContent = {
   about: {
     heading: "A small hotel on the bay, twelve rooms and a long view west",
     body: [
-      "We built Sample Bay Hotel for people who want the city close but not loud. Every room faces the water, and the capiz shell windows in the lobby are the same ones that hung here when the house was first built.",
+      "We built Macrotel for people who want the city close but not loud. Every room faces the water, and the capiz shell windows in the lobby are the same ones that hung here when the house was first built.",
       "Mornings start with coffee and pandesal in the café. Evenings are for the rooftop, where the sun drops behind the bay a little after six.",
     ],
     facts: [
@@ -132,7 +133,7 @@ const fil: HotelContent = {
   about: {
     heading: "Maliit na hotel sa tabi ng look: labindalawang kuwarto at malawak na tanaw sa kanluran",
     body: [
-      "Itinayo namin ang Sample Bay Hotel para sa mga gustong malapit sa lungsod pero malayo sa ingay. Nakaharap sa dagat ang bawat kuwarto, at ang mga bintanang capiz sa lobby ay ang mismong mga bintanang nakasabit dito noong unang itinayo ang bahay.",
+      "Itinayo namin ang Macrotel para sa mga gustong malapit sa lungsod pero malayo sa ingay. Nakaharap sa dagat ang bawat kuwarto, at ang mga bintanang capiz sa lobby ay ang mismong mga bintanang nakasabit dito noong unang itinayo ang bahay.",
       "Nagsisimula ang umaga sa kape at pandesal sa café. Sa gabi, umakyat sa rooftop at panoorin ang paglubog ng araw sa likod ng look, bandang alas-sais.",
     ],
     facts: [
