@@ -33,6 +33,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       .from('payments')
       .select('id, amount, method, provider, status, paid_at, created_at')
       .eq('booking_id', widget.booking['id'] as String)
+      .inFilter('status', ['paid', 'refunded', 'needs_refund']) // same as the website: leave out unfinished attempts
       .order('created_at')
       .then((rows) => List<Map<String, dynamic>>.from(rows));
 
@@ -53,9 +54,23 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
   String _paymentLabel(Map<String, dynamic> p) {
     final when = (p['paid_at'] ?? p['created_at']) as String?;
-    final how = '${p['method'] ?? p['provider'] ?? ''}'.toUpperCase();
+    final how = methodLabel('${p['method'] ?? p['provider'] ?? ''}');
     return [if (when != null) longDate(when), if (how.isNotEmpty) how].join(' · ');
   }
+
+  static String methodLabel(String m) => switch (m) {
+        'cash' => tr('Cash', 'Cash'),
+        'card' => tr('Card', 'Card'),
+        'gcash' => 'GCash',
+        'maya' || 'paymaya' => 'Maya',
+        'grab_pay' || 'grabpay' => 'GrabPay',
+        'qrph' => 'QR Ph',
+        'bank_transfer' => tr('Bank transfer', 'Bank transfer'),
+        'paymongo' => tr('Online', 'Online'),
+        'front_desk' => tr('Front desk', 'Front desk'),
+        '' => '',
+        _ => m[0].toUpperCase() + m.substring(1).replaceAll('_', ' '),
+      };
 
   // ---- PDF ------------------------------------------------------------------
   // The built-in PDF font has no peso sign, so amounts read "PHP 3,800" in the file.
@@ -224,4 +239,4 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 }
 
 TextStyle displayStyleSmall(BuildContext context) =>
-    TextStyle(fontFamily: 'serif', fontSize: 20, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface);
+    TextStyle(fontFamily: 'BricolageGrotesque', fontSize: 20, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface);

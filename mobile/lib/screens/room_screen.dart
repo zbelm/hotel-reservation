@@ -98,7 +98,7 @@ class _RoomScreenState extends State<RoomScreen> {
                     InfoRow('Check-in', tr('From $checkInTime, with a valid ID', 'Mula $checkInTime, may valid na ID')),
                     InfoRow('Check-out', tr('By $checkOutTime', 'Hanggang $checkOutTime')),
                     InfoRow(tr('Payment', 'Bayad'),
-                        tr('In full when you book, taxes included', 'Buong bayad kapag nag-book, kasama ang buwis')),
+                        tr('At the hotel on Flexible rates, taxes included', 'Sa hotel kung Flexible ang rate, kasama ang buwis')),
                     InfoRow(tr('Front desk', 'Front desk'), tr('Open 24 hours', 'Bukas 24 oras')),
                   ]),
                 ),
@@ -140,7 +140,7 @@ class _OfferCard extends StatelessWidget {
                 ? tr('Free cancellation or date change until ${offer['free_cancel_hours']}h before check-in',
                     'Libreng pagkansela o pagpalit ng petsa hanggang ${offer['free_cancel_hours']} oras bago ang check-in')
                 : tr("Non-refundable: can't be cancelled for a refund", 'Non-refundable: walang refund kapag kinansela'),
-            style: TextStyle(color: refundable ? Palette.good : Palette.sun, fontWeight: FontWeight.w600),
+            style: TextStyle(color: refundable ? tones(context).good : tones(context).sun, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
@@ -157,7 +157,7 @@ class _OfferCard extends StatelessWidget {
                 (offer['available'] as int) < 1
                     ? tr('Sold out for these dates', 'Ubos na para sa mga petsang ito')
                     : tr('Needs a stay of ${offer['min_stay']}+ nights', 'Kailangang ${offer['min_stay']} gabi o higit pa'),
-                style: const TextStyle(color: Palette.bad)),
+                style: TextStyle(color: tones(context).bad)),
         ]),
       ),
     );

@@ -83,9 +83,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await db.auth.signInWithOtp(email: email, emailRedirectTo: authRedirect);
-      setState(() => _sent = true);
+      if (mounted) setState(() => _sent = true);
     } catch (e) {
-      setState(() => _error = _explain(e));
+      if (mounted) setState(() => _error = _explain(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -209,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
             if (_error != null) ...[
               const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: Palette.bad)),
+              Text(_error!, style: TextStyle(color: tones(context).bad)),
             ],
           ],
         ),

@@ -67,6 +67,7 @@ int _savedTab = 0;
 
 class _HomeShellState extends State<HomeShell> {
   int _tab = _savedTab;
+  int _staysOpened = 0; // reload My stays each time it's opened, not on every tab change
 
   @override
   Widget build(BuildContext context) {
@@ -76,12 +77,15 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           const SearchScreen(),
           const HotelScreen(),
-          BookingsScreen(key: ValueKey('bookings-$_tab')), // reloads when opened
+          BookingsScreen(key: ValueKey('bookings-$_staysOpened')),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = _savedTab = i),
+        onDestinationSelected: (i) => setState(() {
+          if (i == 2 && _tab != 2) _staysOpened++;
+          _tab = _savedTab = i;
+        }),
         destinations: [
           NavigationDestination(icon: const Icon(Icons.search), label: tr('Book', 'Mag-book')),
           NavigationDestination(

@@ -97,8 +97,14 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                   const Divider(height: 24),
-                  Counter(label: tr('Adults', 'Matanda'), value: _adults, min: 1, max: 4, onChanged: (v) => setState(() => _adults = v)),
-                  Counter(label: tr('Children', 'Bata'), value: _children, min: 0, max: 2, onChanged: (v) => setState(() => _children = v)),
+                  Counter(label: tr('Adults', 'Matanda'), value: _adults, min: 1, max: 4, onChanged: (v) => setState(() {
+                            _adults = v;
+                            _results = null; // old results were for a different group size
+                          })),
+                  Counter(label: tr('Children', 'Bata'), value: _children, min: 0, max: 2, onChanged: (v) => setState(() {
+                            _children = v;
+                            _results = null;
+                          })),
                   const SizedBox(height: 12),
                   FilledButton(onPressed: _search, child: Text(tr('Search rooms', 'Maghanap ng kuwarto'))),
                 ],
@@ -168,21 +174,24 @@ class _ResultCard extends StatelessWidget {
               Text(room['name'] as String, style: displayStyle(context, 22)),
               const SizedBox(height: 4),
               Text(
-                  tr('${room['bed_type']} bed · ${room['size_sqm']} m² · up to ${plural(room['max_adults'] as int, 'adult')}',
-                      '${room['bed_type']} na kama · ${room['size_sqm']} m² · hanggang ${room['max_adults']} matanda'),
+                  [
+                    if (room['bed_type'] != null) tr('${room['bed_type']} bed', '${room['bed_type']} na kama'),
+                    if (room['size_sqm'] != null) '${room['size_sqm']} m²',
+                    tr('up to ${plural(room['max_adults'] as int, 'adult')}', 'hanggang ${room['max_adults']} matanda'),
+                  ].join(' · '),
                   style: TextStyle(color: muted)),
               const SizedBox(height: 12),
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Expanded(
                   child: available < 1
                       ? Text(tr('Sold out for these dates', 'Ubos na para sa mga petsang ito'),
-                          style: const TextStyle(color: Palette.bad, fontWeight: FontWeight.w600))
+                          style: TextStyle(color: tones(context).bad, fontWeight: FontWeight.w600))
                       : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(tr('from ${money(room['lowest_nightly'])} a night', 'mula ${money(room['lowest_nightly'])} bawat gabi'),
                               style: TextStyle(color: muted)),
                           if (available <= 2)
                             Text(tr('Only $available left', '$available na lang ang natitira'),
-                                style: const TextStyle(color: Palette.sun, fontWeight: FontWeight.w600)),
+                                style: TextStyle(color: tones(context).sun, fontWeight: FontWeight.w600)),
                         ]),
                 ),
                 if (available > 0) Text(money(room['lowest_total']), style: displayStyle(context, 24)),

@@ -19,7 +19,7 @@ class ErrorNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(message, style: const TextStyle(color: Palette.bad)),
+        child: Text(message, style: TextStyle(color: tones(context).bad)),
       );
 }
 
@@ -33,10 +33,10 @@ class Counter extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         Expanded(child: Text(label, style: const TextStyle(fontSize: 16))),
         IconButton.outlined(
-            onPressed: value > min ? () => onChanged(value - 1) : null, icon: const Icon(Icons.remove), tooltip: 'Fewer $label'),
+            onPressed: value > min ? () => onChanged(value - 1) : null, icon: const Icon(Icons.remove), tooltip: tr('Fewer: $label', 'Bawasan: $label')),
         SizedBox(width: 36, child: Text('$value', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18))),
         IconButton.outlined(
-            onPressed: value < max ? () => onChanged(value + 1) : null, icon: const Icon(Icons.add), tooltip: 'More $label'),
+            onPressed: value < max ? () => onChanged(value + 1) : null, icon: const Icon(Icons.add), tooltip: tr('More: $label', 'Dagdagan: $label')),
       ]);
 }
 
@@ -70,15 +70,15 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (status) {
-      'held' => Palette.sun,
-      'confirmed' => Palette.good,
-      'checked_in' => Palette.sea,
-      'cancelled' || 'no_show' => Palette.bad,
-      _ => Palette.muted,
+      'held' => tones(context).sun,
+      'confirmed' => tones(context).good,
+      'checked_in' => tones(context).sea,
+      'cancelled' || 'no_show' => tones(context).bad,
+      _ => tones(context).muted,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(99)),
+      decoration: BoxDecoration(color: tones(context).tintFor(color), borderRadius: BorderRadius.circular(99)),
       child: Text(statusLabel(status),
           style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
     );
@@ -93,8 +93,9 @@ class InfoRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 110, child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
-          Expanded(child: Text(value, textAlign: TextAlign.right)),
+          Expanded(flex: 2, child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          const SizedBox(width: 12),
+          Expanded(flex: 3, child: Text(value, textAlign: TextAlign.right)),
         ]),
       );
 }
@@ -116,7 +117,7 @@ class Stars extends StatelessWidget {
           Icon(
             r >= i ? Icons.star_rounded : (r >= i - 0.5 ? Icons.star_half_rounded : Icons.star_outline_rounded),
             size: size,
-            color: Palette.mango,
+            color: tones(context).mango,
           ),
       ]),
     );
@@ -156,16 +157,22 @@ class SectionTitle extends StatelessWidget {
 
 /// A tinted message box: good news, a warning, or an error.
 class Note extends StatelessWidget {
-  const Note(this.text, {super.key, this.color = Palette.sea});
+  const Note(this.text, {super.key, this.color});
   final String text;
-  final Color color;
+
+  /// One of tones(context).good / bad / sun; defaults to sea
+  final Color? color;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
-        child: Text(text, style: TextStyle(color: color)),
-      );
+  Widget build(BuildContext context) {
+    final t = tones(context);
+    final c = color ?? t.sea;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: t.tintFor(c), borderRadius: BorderRadius.circular(12)),
+      child: Text(text, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+    );
+  }
 }

@@ -39,6 +39,9 @@ class _DayPrice {
 // Prices for a month are kept for the visit, so flipping back and forth is instant
 final _cache = <String, Map<String, _DayPrice>>{};
 
+/// Forget saved prices, e.g. after a booking takes a room
+void clearPriceCache() => _cache.clear();
+
 DateTime _day(DateTime d) => DateTime.utc(d.year, d.month, d.day);
 
 class _PriceCalendar extends StatefulWidget {
@@ -195,7 +198,7 @@ class _PriceCalendarState extends State<_PriceCalendar> {
         if (_message != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(_message!, style: const TextStyle(color: Palette.bad)),
+            child: Text(_message!, style: TextStyle(color: tones(context).bad)),
           ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -276,7 +279,7 @@ class _PriceCalendarState extends State<_PriceCalendar> {
                   overflow: TextOverflow.clip,
                   style: TextStyle(
                     fontSize: 10,
-                    color: isEnd ? scheme.onPrimary : (full ? Palette.bad : scheme.onSurfaceVariant),
+                    color: isEnd ? scheme.onPrimary : (full ? tones(context).bad : scheme.onSurfaceVariant),
                   )),
             ]),
           ),

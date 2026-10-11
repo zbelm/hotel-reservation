@@ -75,7 +75,7 @@ const en: HotelContent = {
     },
     {
       title: "Payment and prices",
-      body: "Online bookings are paid in full when you book, by GCash, Maya, GrabPay, QR Ph or card. Prices are in Philippine pesos and include 12% VAT and service charge. Your room is held for 15 minutes while you pay.",
+      body: "On Flexible rates you can pay at the front desk when you arrive, by cash, card, GCash or Maya. Non-refundable rates are paid online when you book. Prices are in Philippine pesos and include 12% VAT and service charge.",
     },
     {
       title: "Children and extra beds",
@@ -93,11 +93,11 @@ const en: HotelContent = {
   faqs: [
     {
       q: "Can I pay when I arrive instead?",
-      a: "Online bookings are paid when you book, so your room is guaranteed. If you'd rather pay at the hotel, call the front desk and they can book you in as a walk-in, subject to availability.",
+      a: "Yes, on Flexible rates. Choose Pay at the hotel at checkout and your room is confirmed straight away. Pay at the front desk when you arrive. Non-refundable rates are paid online when you book.",
     },
     {
-      q: "What happens if I don't finish paying?",
-      a: "We hold the room for 15 minutes. If payment doesn't come through by then, the room is released and nothing is charged. You can book again any time.",
+      q: "What happens if I don't finish booking?",
+      a: "We hold the room for 15 minutes while you finish. If the booking isn't confirmed by then, the room is released and nothing is charged. You can book again any time.",
     },
     {
       q: "Can I change my dates?",
@@ -176,7 +176,7 @@ const fil: HotelContent = {
     },
     {
       title: "Bayad at mga presyo",
-      body: "Buong bayad kapag nag-book online, sa GCash, Maya, GrabPay, QR Ph o card. Nasa piso ang mga presyo at kasama na ang 12% VAT at service charge. Ihahawak namin ang kuwarto mo nang 15 minuto habang nagbabayad ka.",
+      body: "Sa Flexible na rate, puwede kang magbayad sa front desk pagdating mo, sa cash, card, GCash o Maya. Binabayaran online sa oras ng pag-book ang non-refundable na rate. Nasa piso ang mga presyo at kasama na ang 12% VAT at service charge.",
     },
     {
       title: "Mga bata at extra bed",
@@ -194,11 +194,11 @@ const fil: HotelContent = {
   faqs: [
     {
       q: "Puwede bang sa pagdating na lang magbayad?",
-      a: "Binabayaran ang online booking sa oras ng pag-book para siguradong sa iyo ang kuwarto. Kung gusto mong sa hotel magbayad, tumawag sa front desk at ipapa-book ka nila bilang walk-in, depende sa availability.",
+      a: "Oo, sa Flexible na rate. Piliin ang Magbayad sa hotel sa checkout at kumpirmado agad ang kuwarto mo. Magbayad sa front desk pagdating mo. Binabayaran online sa oras ng pag-book ang non-refundable na rate.",
     },
     {
-      q: "Paano kung hindi ko natapos ang pagbayad?",
-      a: "Ihahawak namin ang kuwarto nang 15 minuto. Kung hindi pumasok ang bayad sa loob ng oras na iyon, bibitawan ang kuwarto at walang sisingilin. Puwede kang mag-book ulit kahit kailan.",
+      q: "Paano kung hindi ko natapos ang pag-book?",
+      a: "Ihahawak namin ang kuwarto nang 15 minuto habang tinatapos mo. Kung hindi nakumpirma ang booking sa loob ng oras na iyon, bibitawan ang kuwarto at walang sisingilin. Puwede kang mag-book ulit kahit kailan.",
     },
     {
       q: "Puwede ko bang palitan ang mga petsa?",

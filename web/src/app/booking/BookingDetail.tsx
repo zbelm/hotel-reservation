@@ -178,14 +178,14 @@ export function BookingDetail() {
 
       {b.status === "checked_out" && <ReviewForm booking={b} />}
 
-      {b.status === "confirmed" && (
+      {(b.status === "confirmed" || holdActive) && (
         <div className="mt-8">
           {!confirming ? (
             <button className="btn-danger" onClick={() => setConfirming(true)}>{t.booking.cancel}</button>
           ) : (
             <div className="card grid gap-3 p-5">
               <p className="font-semibold">{t.booking.cancelQ}</p>
-              <p className="text-sm text-muted">{plan?.refundable ? t.booking.cancelFree(plan.free_cancel_hours) : t.booking.cancelNonRef}</p>
+              <p className="text-sm text-muted">{Number(b.amount_paid) <= 0 ? t.booking.cancelUnpaid : plan?.refundable ? t.booking.cancelFree(plan.free_cancel_hours) : t.booking.cancelNonRef}</p>
               <div className="flex gap-3">
                 <button className="btn-danger" onClick={cancel}>{t.booking.yesCancel}</button>
                 <button className="btn-quiet" onClick={() => setConfirming(false)}>{t.booking.keep}</button>

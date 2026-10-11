@@ -82,8 +82,8 @@ class HotelScreen extends StatelessWidget {
 
           SectionTitle(tr('House rules and cancellation', 'Patakaran at pagkansela')),
           Text(
-            tr('In short: bring an ID, pay when you book, and flexible rates can be cancelled or changed free until 48 hours before you arrive.',
-                'Sa madaling salita: magdala ng ID, magbayad kapag nag-book, at puwedeng kanselahin o palitan nang libre ang flexible rate hanggang 48 oras bago ka dumating.'),
+            tr('In short: bring an ID, pay at the front desk on Flexible rates, and cancel or change those for free until 48 hours before you arrive.',
+                'Sa madaling salita: magdala ng ID, magbayad sa front desk kung Flexible ang rate, at puwede itong kanselahin o palitan nang libre hanggang 48 oras bago ka dumating.'),
             style: TextStyle(color: muted),
           ),
           const SizedBox(height: 10),

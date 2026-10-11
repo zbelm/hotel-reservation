@@ -6,6 +6,7 @@ import '../config.dart';
 import '../format.dart';
 import '../hotel.dart';
 import '../i18n.dart';
+import '../price_calendar.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'booking_screen.dart';
@@ -103,6 +104,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'p_source': 'mobile',
       }) as Map);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _busy = false;
         _error = errorText(e);
@@ -111,6 +113,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     final bookingId = booking['id'] as String;
+    clearPriceCache(); // this booking just took a room
 
     // Arrival time and the agreement are extras: a failure here shouldn't stop the booking
     try {
@@ -130,7 +133,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => BookingScreen(bookingId: bookingId, paymentError: hotelError, justBooked: hotelError == null)),
+        MaterialPageRoute(builder: (_) => BookingScreen(bookingId: bookingId, bookingError: hotelError, justBooked: hotelError == null)),
         (route) => route.isFirst,
       );
       return;
@@ -139,6 +142,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     String? payError;
     try {
       final url = await createCheckout(bookingId);
+      if (!mounted) return;
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
       payError = errorText(e);
@@ -160,7 +164,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final n = nightsBetween(widget.checkIn, widget.checkOut);
     final guestName = _name.text.trim().isEmpty ? tr('the guest named above', 'sa bisitang nakapangalan sa itaas') : _name.text.trim();
 
-    return Scaffold(
+    // Stay on this screen while the booking is being made, so it can't finish unseen
+    return PopScope(
+      canPop: !_busy,
+      child: Scaffold(
       appBar: AppBar(title: Text(tr("Who's staying?", 'Sino ang tutuloy?'))),
       body: Form(
         key: _form,
@@ -254,7 +261,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             '${offer['name']}: libreng kanselahin o palitan ang petsa hanggang ${offer['free_cancel_hours']} oras bago ang check-in. Pagkatapos noon, hindi na ibabalik ang bayad sa unang gabi.')
                         : tr("${offer['name']}: this rate can't be refunded if you cancel or don't arrive.",
                             '${offer['name']}: walang refund ang rate na ito kapag kinansela o hindi ka dumating.'),
-                    style: TextStyle(color: refundable ? Palette.good : Palette.sun, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: refundable ? tones(context).good : tones(context).sun, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   Text(tr('Bring a valid ID for $guestName. Check-in from $checkInTime, check-out by $checkOutTime.',
@@ -287,7 +294,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               Note(
                   tr("This rate has to be paid online, and online payment isn't available yet. Go back and choose a Flexible rate to pay at the hotel.",
                       'Kailangang bayaran online ang rate na ito, at wala pang online na bayad. Bumalik at pumili ng Flexible na rate para magbayad sa hotel.'),
-                  color: Palette.sun)
+                  color: tones(context).sun)
             else
               Card(
                 child: Column(children: [
@@ -327,6 +334,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

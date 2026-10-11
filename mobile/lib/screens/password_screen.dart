@@ -70,7 +70,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
             Text(
               tr('Password saved. Next time, sign in with your email and this password.',
                   'Na-save ang password. Sa susunod, mag-sign in gamit ang email mo at ang password na ito.'),
-              style: const TextStyle(color: Palette.good, fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(color: tones(context).good, fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
             FilledButton(onPressed: () => Navigator.of(context).pop(), child: Text(tr('Done', 'Tapos na'))),
@@ -100,7 +100,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
           ],
           if (_error != null) ...[
             const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(color: Palette.bad)),
+            Text(_error!, style: TextStyle(color: tones(context).bad)),
           ],
         ],
       ),

@@ -25,3 +25,22 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # The website's fonts (SIL Open Font License, see assets/fonts/OFL-*.txt)
+  fonts:
+    - family: Figtree
+      fonts:
+        - asset: assets/fonts/Figtree-400.ttf
+        - asset: assets/fonts/Figtree-500.ttf
+          weight: 500
+        - asset: assets/fonts/Figtree-600.ttf
+          weight: 600
+        - asset: assets/fonts/Figtree-700.ttf
+          weight: 700
+    - family: BricolageGrotesque
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-500.ttf
+          weight: 500
+        - asset: assets/fonts/BricolageGrotesque-600.ttf
+          weight: 600
+        - asset: assets/fonts/BricolageGrotesque-700.ttf
+          weight: 700

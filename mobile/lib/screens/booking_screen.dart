@@ -15,9 +15,14 @@ import '../widgets.dart';
 import 'receipt_screen.dart';
 
 class BookingScreen extends StatefulWidget {
-  const BookingScreen({super.key, required this.bookingId, this.paymentError, this.justBooked = false});
+  const BookingScreen({super.key, required this.bookingId, this.paymentError, this.bookingError, this.justBooked = false});
   final String bookingId;
+
+  /// Online checkout couldn't start
   final String? paymentError;
+
+  /// Something else went wrong right after booking (shown as it is)
+  final String? bookingError;
   final bool justBooked;
 
   @override
@@ -36,7 +41,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _error = widget.paymentError == null
-        ? null
+        ? widget.bookingError
         : tr("Payment couldn't start: ${widget.paymentError}", 'Hindi nasimulan ang pagbayad: ${widget.paymentError}');
     if (widget.justBooked) _notice = tr('Booking confirmed. Your room is saved.', 'Kumpirmado ang booking. Nakalaan na ang kuwarto mo.');
     _load();
@@ -92,9 +97,10 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     });
     try {
       final url = await createCheckout(widget.bookingId);
+      if (!mounted) return;
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
-      setState(() => _error = errorText(e));
+      if (mounted) setState(() => _error = errorText(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -118,11 +124,15 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
 
   Future<void> _cancel(Map<String, dynamic>? plan) async {
     final refundable = plan?['refundable'] == true;
+    final paid = (num.tryParse('${_b?['amount_paid']}') ?? 0) > 0;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(tr('Cancel this booking?', 'Kanselahin ang booking na ito?')),
-        content: Text(refundable
+        content: Text(!paid
+            ? tr("Nothing has been paid, so there's nothing to refund. The room is released for other guests.",
+                'Wala pang bayad, kaya walang ire-refund. Ibibigay ang kuwarto sa ibang bisita.')
+            : refundable
             ? tr("Free if it's more than ${plan?['free_cancel_hours']} hours before check-in; after that the first night is kept.",
                 'Libre kung higit ${plan?['free_cancel_hours']} oras pa bago ang check-in; pagkatapos noon, hindi na ibabalik ang bayad sa unang gabi.')
             : tr('This rate is non-refundable, so no money will be returned.',
@@ -131,11 +141,12 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Keep booking', 'Huwag kanselahin'))),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text(tr('Yes, cancel', 'Oo, kanselahin'), style: const TextStyle(color: Palette.bad))),
+              child: Text(tr('Yes, cancel', 'Oo, kanselahin'), style: TextStyle(color: tones(context).bad))),
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
     try {
       final res = Map<String, dynamic>.from(await db.rpc('cancel_booking', params: {'p_booking_id': widget.bookingId}) as Map);
       final refund = num.tryParse('${res['refund_due']}') ?? 0;
@@ -144,9 +155,11 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
               ? tr('Booking cancelled. ${money(refund)} will be refunded to your original payment method.',
                   'Nakansela na ang booking. Ipapadala ang refund na ${money(refund)} sa orihinal na paraan ng pagbayad.')
               : tr('Booking cancelled.', 'Nakansela na ang booking.'));
-      _load();
+      await _load();
     } catch (e) {
       _say(error: errorText(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -178,12 +191,12 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     try {
       quote = await call(true);
     } catch (e) {
-      setState(() => _busy = false);
+      if (mounted) setState(() => _busy = false);
       _say(error: errorText(e));
       return;
     }
-    setState(() => _busy = false);
     if (!mounted) return;
+    setState(() => _busy = false);
 
     final balance = num.tryParse('${quote['balance_due']}') ?? 0;
     final refund = num.tryParse('${quote['refund_due']}') ?? 0;
@@ -219,13 +232,16 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
     try {
       await call(false);
       _say(notice: tr('Your dates are changed.', 'Napalitan na ang mga petsa mo.'));
-      _load();
+      await _load();
     } catch (e) {
       _say(error: errorText(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -279,6 +295,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     final type = _idTypes.containsKey(file.mimeType) ? file.mimeType! : fromName;
     final path = '${widget.bookingId}/id-${DateTime.now().millisecondsSinceEpoch}.${_idTypes[type]}';
     final previous = _b?['id_document_path'] as String?;
+    if (!mounted) return;
 
     setState(() {
       _busy = true;
@@ -324,6 +341,13 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
     final arriving = arrivalLabel(b['arrival_time'] as String?);
     final requests = (b['special_requests'] as String?)?.trim() ?? '';
     final balance = (num.tryParse('${b['total']}') ?? 0) - (num.tryParse('${b['amount_paid']}') ?? 0);
+    final paidSomething = (num.tryParse('${b['amount_paid']}') ?? 0) > 0;
+    final showReceipt = paidSomething || const ['confirmed', 'checked_in', 'checked_out'].contains(status);
+    final payment = switch (b['payment_option']) {
+      'pay_at_hotel' => tr('At the hotel', 'Sa hotel'),
+      'front_desk' => tr('At the front desk', 'Sa front desk'),
+      _ => tr('Online', 'Online'),
+    };
 
     return Scaffold(
       appBar: AppBar(title: Text('Booking ${b['code']}')),
@@ -340,14 +364,14 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
             ]),
             Text(plan?['name'] as String? ?? '', style: TextStyle(color: muted)),
             const SizedBox(height: 8),
-            if (_error != null) Note(_error!, color: Palette.bad),
-            if (_notice != null) Note(_notice!, color: Palette.good),
+            if (_error != null) Note(_error!, color: tones(context).bad),
+            if (_notice != null) Note(_notice!, color: tones(context).good),
             if (b['payment_option'] == 'pay_at_hotel' && balance > 0 && (status == 'confirmed' || status == 'checked_in'))
               Note(tr('Pay ${money(balance)} at the front desk when you arrive. Cash, card, GCash and Maya are accepted.',
                   'Bayaran ang ${money(balance)} sa front desk pagdating mo. Tumatanggap ng cash, card, GCash at Maya.')),
             if (holdActive) ...[
               Card(
-                color: Palette.sun.withValues(alpha: 0.10),
+                color: tones(context).sunTint,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -371,9 +395,15 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
               ),
               const SizedBox(height: 12),
             ],
-            if (status == 'held' && !holdActive)
+            if (status == 'held' && !holdActive) ...[
               ErrorNote(tr('This hold has ended and the room was released. Please book again.',
                   'Tapos na ang paghawak at binitawan na ang kuwarto. Mag-book ulit.')),
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                child: Text(tr('Book again', 'Mag-book ulit')),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (status == 'confirmed' || status == 'checked_in') ...[
               Card(
                 child: Padding(
@@ -406,6 +436,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                   if (arriving != null) InfoRow(tr('Arriving', 'Darating'), arriving),
                   if (requests.isNotEmpty) InfoRow(tr('Requests', 'Mga hiling'), requests),
                   if (br?['rooms']?['number'] != null) InfoRow(tr('Room', 'Kuwarto'), br!['rooms']['number'] as String),
+                  if (status != 'held') InfoRow(tr('Payment', 'Bayad'), payment),
                   if (plan != null)
                     InfoRow(
                         tr('Cancellation', 'Pagkansela'),
@@ -428,37 +459,39 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                       alignment: Alignment.centerRight,
                       child: Text(tr('Paid ${money(b['amount_paid'])}', 'Nabayaran: ${money(b['amount_paid'])}'),
                           style: TextStyle(color: muted))),
-                  if (status != 'held' && status != 'cancelled' && balance > 0)
+                  if ((status == 'confirmed' || status == 'checked_in') && balance > 0)
                     Align(
                         alignment: Alignment.centerRight,
                         child: Text(tr('${money(balance)} left to pay', '${money(balance)} pa ang babayaran'),
-                            style: const TextStyle(color: Palette.sun, fontWeight: FontWeight.w600))),
+                            style: TextStyle(color: tones(context).sun, fontWeight: FontWeight.w600))),
                   if ((num.tryParse('${b['refund_due']}') ?? 0) > 0)
                     Align(
                         alignment: Alignment.centerRight,
                         child: Text(tr('Refund due ${money(b['refund_due'])}', 'Refund na matatanggap: ${money(b['refund_due'])}'),
-                            style: const TextStyle(color: Palette.bad))),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(booking: b))),
-                      icon: const Icon(Icons.receipt_long_outlined),
-                      label: Text(tr('Receipt', 'Resibo')),
+                            style: TextStyle(color: tones(context).good, fontWeight: FontWeight.w600))),
+                  if (showReceipt) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReceiptScreen(booking: b))),
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: Text(tr('Receipt', 'Resibo')),
+                      ),
                     ),
-                  ),
+                  ],
                 ]),
               ),
             ),
             if (status == 'confirmed') _changeDatesCard(b, plan),
             if (status == 'confirmed' || holdActive) _idCard(b),
             if (status == 'checked_out') _ReviewCard(bookingId: widget.bookingId, existing: _myReview, onPosted: _load),
-            if (status == 'confirmed') _beforeYouArrive(b),
-            if (status == 'confirmed') ...[
+            if (status == 'confirmed' || holdActive) _beforeYouArrive(b),
+            if (status == 'confirmed' || holdActive) ...[
               const SizedBox(height: 16),
               OutlinedButton(
-                onPressed: () => _cancel(plan),
-                style: OutlinedButton.styleFrom(foregroundColor: Palette.bad),
+                onPressed: _busy ? null : () => _cancel(plan),
+                style: OutlinedButton.styleFrom(foregroundColor: tones(context).bad),
                 child: Text(tr('Cancel booking', 'Kanselahin ang booking')),
               ),
             ],
@@ -521,7 +554,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
             const SizedBox(height: 4),
             if (verified)
               Text(tr('Your ID has been checked. The photo has been deleted.', 'Na-check na ang ID mo. Binura na ang litrato.'),
-                  style: const TextStyle(color: Palette.good))
+                  style: TextStyle(color: tones(context).good))
             else ...[
               Text(
                 hasFile && uploadedAt != null
@@ -529,7 +562,7 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                         'Natanggap ang ID noong ${longDate(uploadedAt)}. Titingnan ito ng front desk pagdating mo.')
                     : tr('Upload a clear photo of a government ID or passport for the guest named on the booking. Check-in is quicker, and only the front desk can see it.',
                         'Mag-upload ng malinaw na litrato ng government ID o pasaporte ng bisitang nakapangalan sa booking. Mas mabilis ang check-in, at ang front desk lang ang makakakita nito.'),
-                style: TextStyle(color: hasFile ? Palette.good : muted),
+                style: TextStyle(color: hasFile ? tones(context).good : muted),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -649,7 +682,7 @@ class _ReviewCardState extends State<_ReviewCard> {
           padding: const EdgeInsets.all(16),
           child: mine != null
               ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  if (_posted) Note(tr('Thank you. Your review is posted.', 'Salamat. Naka-post na ang review mo.'), color: Palette.good),
+                  if (_posted) Note(tr('Thank you. Your review is posted.', 'Salamat. Naka-post na ang review mo.'), color: tones(context).good),
                   Text(tr('Your review', 'Ang review mo'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Stars((mine['rating'] as num?) ?? 0),
@@ -676,7 +709,7 @@ class _ReviewCardState extends State<_ReviewCard> {
                         onPressed: () => setState(() => _rating = i),
                         tooltip: tr('$i star${i == 1 ? '' : 's'}', '$i bituin'),
                         iconSize: 36,
-                        icon: Icon(i <= _rating ? Icons.star_rounded : Icons.star_outline_rounded, color: Palette.mango),
+                        icon: Icon(i <= _rating ? Icons.star_rounded : Icons.star_outline_rounded, color: tones(context).mango),
                       ),
                   ]),
                   TextField(
