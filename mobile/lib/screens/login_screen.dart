@@ -23,6 +23,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
   _Mode _mode = _Mode.signIn;
   bool _showPassword = false;
+  bool _byCode = false; // passwordless sign-in: email a 6-digit code instead of a link
+  bool _codeOpen = false; // chose a link, but typing the code from the same email
   String? _sent; // the confirmation message once an email has gone out
   bool _busy = false;
   String? _error;
@@ -51,6 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
       return tr('Too many emails were sent in the last hour. Please try again later, or sign in with your password.',
           'Masyadong maraming email ang naipadala ngayong oras. Subukan ulit mamaya, o mag-sign in gamit ang password.');
     }
+    if (has(r'token has expired|otp.*(expired|invalid)|invalid.*(token|otp)')) {
+      return tr('That code is wrong or has expired. Check the newest email, or send a new code.',
+          'Mali o expired na ang code na iyon. Tingnan ang pinakabagong email, o magpadala ng bagong code.');
+    }
     return msg;
   }
 
@@ -60,6 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _switch(_Mode mode) => setState(() {
         _mode = mode;
         _sent = null;
+        _codeOpen = false;
         _code.clear();
         _password.clear();
         _error = null;
@@ -117,11 +124,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _sendLink() => _run((email) async {
         await db.auth.signInWithOtp(email: email, emailRedirectTo: authRedirect);
-        if (mounted) {
-          setState(() => _sent = tr(
-              'Open the email we sent to $email on this phone and tap the sign-in link. The app opens and signs you in.',
-              'Buksan sa teleponong ito ang email na ipinadala namin sa $email at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'));
-        }
+        if (!mounted) return;
+        _code.clear();
+        setState(() => _sent = _byCode
+            ? tr('We sent a 6-digit code to $email. Type it below to sign in.',
+                'Nagpadala kami ng 6-digit na code sa $email. I-type ito sa ibaba para mag-sign in.')
+            : tr('Open the email we sent to $email on this phone and tap the sign-in link. The app opens and signs you in.',
+                'Buksan sa teleponong ito ang email na ipinadala namin sa $email at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'));
       });
 
   Future<void> _verify() =>
@@ -138,9 +147,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _Mode.forgot => (tr('Reset your\npassword', 'I-reset ang\npassword'),
           tr("Enter your email and we'll send you a link to choose a new password.",
               'Ilagay ang email mo at magpapadala kami ng link para pumili ng bagong password.')),
-      _Mode.link => (tr('Sign in with\nan email link', 'Mag-sign in gamit\nang email link'),
-          tr("We'll email you a link that signs you in, no password needed.",
-              'Magpapadala kami ng link na magsa-sign in sa iyo, walang password na kailangan.')),
+      _Mode.link => (tr('Sign in with\nyour email', 'Mag-sign in gamit\nang email'),
+          tr("No password needed. Choose what we email you: a link to tap, or a 6-digit code to type here.",
+              'Walang password na kailangan. Piliin ang ipapadala namin: link na pipindutin, o 6-digit na code na ita-type dito.')),
     };
 
     return Scaffold(
@@ -181,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? TextButton(onPressed: () => _switch(_Mode.signIn), child: Text(tr('Back to sign in', 'Bumalik sa sign in')))
                   : TextButton(
                       onPressed: () => _switch(_Mode.link),
-                      child: Text(tr('Email me a sign-in link instead', 'Ipadala na lang ang sign-in link sa email ko'))),
+                      child: Text(tr('Sign in with an email link or code instead', 'Mag-sign in na lang gamit ang email link o code'))),
             ),
           ],
         ),
@@ -251,20 +260,37 @@ class _LoginScreenState extends State<LoginScreen> {
             _submit(tr('Send reset link', 'Ipadala ang reset link'), tr('Sending…', 'Ipinapadala…'), _sendReset),
           ],
         _Mode.link => [
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(value: false, label: Text(tr('Email link', 'Email link')), icon: const Icon(Icons.link)),
+                ButtonSegment(value: true, label: Text(tr('6-digit code', '6-digit na code')), icon: const Icon(Icons.pin_outlined)),
+              ],
+              selected: {_byCode},
+              onSelectionChanged: (s) => setState(() => _byCode = s.first),
+            ),
+            const SizedBox(height: 16),
             _emailField(onSubmit: _sendLink, last: true),
             const SizedBox(height: 24),
-            _submit(tr('Email me a sign-in link', 'Ipadala ang sign-in link'), tr('Sending…', 'Ipinapadala…'), _sendLink),
+            _byCode
+                ? _submit(tr('Email me a code', 'Ipadala ang code'), tr('Sending…', 'Ipinapadala…'), _sendLink)
+                : _submit(tr('Email me a sign-in link', 'Ipadala ang sign-in link'), tr('Sending…', 'Ipinapadala…'), _sendLink),
           ],
       };
 
   List<Widget> _sentView(Color muted) => [
         Text(_sent!, style: TextStyle(color: tones(context).good, fontSize: 16, fontWeight: FontWeight.w600)),
-        if (_mode == _Mode.link) ...[
-          const SizedBox(height: 16),
-          Text(tr('If your email shows a 6-digit code instead, type it here:', 'Kung 6-digit na code ang nasa email, ilagay ito rito:'),
-              style: TextStyle(color: muted)),
+        if (_mode == _Mode.link && !_byCode && !_codeOpen)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _codeOpen = true),
+              child: Text(tr('Typing a code instead? Enter it here', 'Code ang gagamitin? Ilagay ito rito')),
+            ),
+          ),
+        if (_mode == _Mode.link && (_byCode || _codeOpen)) ...[
           const SizedBox(height: 16),
           TextField(
+            autofocus: true,
             controller: _code,
             keyboardType: TextInputType.number,
             maxLength: 6,
@@ -281,17 +307,18 @@ class _LoginScreenState extends State<LoginScreen> {
           _submit(tr('Sign in', 'Mag-sign in'), tr('Checking…', 'Sinusuri…'), _verify),
         ],
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
+        Wrap(spacing: 8, children: [
+          if (_mode == _Mode.link) TextButton(onPressed: _busy ? null : _sendLink, child: Text(tr('Send a new email', 'Magpadala ulit'))),
+          TextButton(
             onPressed: () => setState(() {
               _sent = null;
+              _codeOpen = false;
               _code.clear();
               _password.clear();
               _error = null;
             }),
             child: Text(tr('Use a different email', 'Gumamit ng ibang email')),
           ),
-        ),
+        ]),
       ];
 }

@@ -45,7 +45,7 @@ export function TeamTab() {
     const status = (data as { status: string }).status;
     setNotice(
       status === "invited"
-        ? `${email} is added. To get access they sign in on the website with “Email me a sign-in link”, which proves the address is theirs.`
+        ? `${email} is added. To get access they sign in on the website with an email link or code, which proves the address is theirs.`
         : status === "removed"
           ? `${email} no longer has access to the staff portal.`
           : `${email} now has access to the staff portal.`,

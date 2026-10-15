@@ -12,6 +12,8 @@ import { useT } from "@/lib/i18n";
 const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1";
 
 type Mode = "signin" | "signup" | "forgot" | "link";
+// What a passwordless sign-in emails: a link to tap, or a code to type here
+type Via = "link" | "code";
 
 // Only ever return to a page on this site (blocks tricks like "//evil.com" or "/\\evil.com")
 function safeNext(value: string | null): string {
@@ -35,7 +37,9 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [via, setVia] = useState<Via>("link");
   const [code, setCode] = useState("");
+  const [codeOpen, setCodeOpen] = useState(false); // chose a link, but typing the code from the same email
   const [sent, setSent] = useState<string>(""); // the confirmation message once an email has gone out
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -53,6 +57,7 @@ export function Login() {
     if (/email not confirmed/i.test(message)) return t.login.unconfirmed;
     if (/already registered|already exists/i.test(message)) return t.login.exists;
     if (/rate limit|too many/i.test(message)) return t.login.tooMany;
+    if (/token has expired|otp.*(expired|invalid)|invalid.*(token|otp)/i.test(message)) return t.login.codeWrong;
     return message;
   }
 
@@ -61,6 +66,7 @@ export function Login() {
     dismissLinkError();
     setSent("");
     setCode("");
+    setCodeOpen(false);
     setPassword("");
     setError("");
   }
@@ -125,13 +131,14 @@ export function Login() {
     });
   }
 
-  function sendLink(e: FormEvent) {
-    e.preventDefault();
+  function sendLink(e?: FormEvent) {
+    e?.preventDefault();
     run(async () => {
       const address = email.trim();
       const { error } = await supabase().auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirectTo() } });
       if (error) return explain(error.message);
-      setSent(t.login.check(address));
+      setCode("");
+      setSent(via === "code" ? t.login.checkCode(address) : t.login.check(address));
     });
   }
 
@@ -206,7 +213,12 @@ export function Login() {
       {sent ? (
         <div className="mt-6 grid gap-4">
           <Notice tone="good">{sent}</Notice>
-          {mode === "link" && (
+          {mode === "link" && via === "link" && !codeOpen && (
+            <button type="button" className="justify-self-start text-sm font-semibold text-sea hover:underline" onClick={() => setCodeOpen(true)}>
+              {t.login.haveCode}
+            </button>
+          )}
+          {mode === "link" && (via === "code" || codeOpen) && (
             <form onSubmit={verifyCode} className="grid gap-4">
               <div>
                 <label htmlFor="code" className="label">{t.login.code}</label>
@@ -216,7 +228,12 @@ export function Login() {
               <button className="btn-primary" disabled={busy || code.length < 6}>{busy ? t.login.checking : t.login.signIn}</button>
             </form>
           )}
-          <button type="button" className="text-sm text-muted hover:text-ink" onClick={startOver}>{t.login.other}</button>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            {mode === "link" && (
+              <button type="button" className="text-muted hover:text-ink disabled:opacity-60" disabled={busy} onClick={() => sendLink()}>{t.login.resend}</button>
+            )}
+            <button type="button" className="text-muted hover:text-ink" onClick={startOver}>{t.login.other}</button>
+          </div>
         </div>
       ) : mode === "signin" ? (
         <form onSubmit={signIn} className="mt-6 grid gap-4">
@@ -237,8 +254,16 @@ export function Login() {
         </form>
       ) : (
         <form onSubmit={sendLink} className="mt-6 grid gap-4">
+          <div role="radiogroup" aria-label={t.login.linkIntro} className="grid grid-cols-2 rounded-full border border-line bg-paper p-1 text-sm font-semibold">
+            {(["link", "code"] as const).map((v) => (
+              <button key={v} type="button" role="radio" aria-checked={via === v} onClick={() => setVia(v)}
+                className={`rounded-full px-4 py-2 transition-colors ${via === v ? "bg-sea text-paper" : "text-muted hover:text-ink"}`}>
+                {v === "link" ? t.login.viaLink : t.login.viaCode}
+              </button>
+            ))}
+          </div>
           {emailField}
-          <button className="btn-primary" disabled={busy}>{busy ? t.login.sending : t.login.send}</button>
+          <button className="btn-primary" disabled={busy}>{busy ? t.login.sending : via === "code" ? t.login.sendCode : t.login.send}</button>
         </form>
       )}
 
