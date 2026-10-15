@@ -297,12 +297,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   color: tones(context).sun)
             else
               Card(
-                child: Column(children: [
+                child: RadioGroup<String>(
+                  groupValue: _payBy,
+                  onChanged: (v) => setState(() => _picked = v),
+                  child: Column(children: [
                   if (_canPayHotel)
                     RadioListTile<String>(
                       value: 'hotel',
-                      groupValue: _payBy,
-                      onChanged: (v) => setState(() => _picked = v),
                       title: Text(tr('Pay at the hotel', 'Magbayad sa hotel'), style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(tr('Your room is confirmed now. Pay ${money(offer['total'])} at the front desk when you arrive: cash, card, GCash or Maya.',
                           'Kumpirmado na ang kuwarto mo. Bayaran ang ${money(offer['total'])} sa front desk pagdating mo: cash, card, GCash o Maya.')),
@@ -310,13 +311,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   if (onlinePayments)
                     RadioListTile<String>(
                       value: 'online',
-                      groupValue: _payBy,
-                      onChanged: (v) => setState(() => _picked = v),
                       title: Text(tr('Pay online now', 'Magbayad online ngayon'), style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(tr('GCash, Maya, GrabPay, QR Ph or card. We hold the room for 15 minutes while you pay.',
                           'GCash, Maya, GrabPay, QR Ph o card. Ihahawak namin ang kuwarto nang 15 minuto habang nagbabayad ka.')),
                     ),
-                ]),
+                  ]),
+                ),
               ),
             const SizedBox(height: 8),
             if (_error != null) ErrorNote(_error!),

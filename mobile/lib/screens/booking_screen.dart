@@ -301,8 +301,8 @@ class _BookingScreenState extends State<BookingScreen> with WidgetsBindingObserv
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Text(tr('Your room is held until ${niceTime(holdEnds!)}. Confirm it before then.',
-                        'Hawak ang kuwarto mo hanggang ${niceTime(holdEnds!)}. Kumpirmahin ito bago noon.')),
+                    Text(tr('Your room is held until ${niceTime(holdEnds)}. Confirm it before then.',
+                        'Hawak ang kuwarto mo hanggang ${niceTime(holdEnds)}. Kumpirmahin ito bago noon.')),
                     const SizedBox(height: 12),
                     if (plan?['refundable'] == true)
                       FilledButton(
