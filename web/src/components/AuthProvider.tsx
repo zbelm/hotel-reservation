@@ -63,8 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // New password saved, or signed out: the reset is over
       if (event === "USER_UPDATED" || event === "SIGNED_OUT") setRecovering(false);
       if (event === "SIGNED_IN") setLinkError(null);
-      // Run outside the auth callback, as Supabase recommends
-      setTimeout(() => loadProfile(s), 0);
+      // Run outside the auth callback, as Supabase recommends. After a sign-in, first apply
+      // any waiting staff invite (the database checks the person signed in from their inbox).
+      setTimeout(async () => {
+        if (event === "SIGNED_IN" && s) await supabase().rpc("claim_staff_invite");
+        loadProfile(s);
+      }, 0);
     });
     return () => sub.subscription.unsubscribe();
   }, []);

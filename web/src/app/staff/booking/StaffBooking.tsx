@@ -68,7 +68,8 @@ function Detail() {
   const br = b.booking_rooms?.[0];
   const balance = Number(b.total) - Number(b.amount_paid);
   const active = ["confirmed", "checked_out"].includes(b.status);
-  const canMarkNoShow = b.status === "confirmed" && b.check_in <= todayManila();
+  // Also after check-out time, so a completed stay can still be corrected to a no-show
+  const canMarkNoShow = active && b.check_in <= todayManila();
 
   return (
     <>
@@ -79,7 +80,11 @@ function Detail() {
       </div>
       <p className="mt-1 font-mono text-muted">{b.code} · booked via {b.source.replace("_", " ")}</p>
       {b.payment_option === "pay_at_hotel" && balance > 0 && b.status === "confirmed" && (
-        <div className="mt-4"><Notice tone="warn">Pays at the hotel: collect {money(balance)} and record it below.</Notice></div>
+        <div className="mt-4"><Notice tone="warn">
+          {b.check_out <= todayManila()
+            ? `The stay has ended but ${money(balance)} isn't recorded as paid. Record the payment below, or mark a no-show if the guest never came.`
+            : `Pays at the hotel: collect ${money(balance)} and record it below.`}
+        </Notice></div>
       )}
 
       {msg && <div className="mt-5"><Notice tone={msg.tone}>{msg.text}</Notice></div>}

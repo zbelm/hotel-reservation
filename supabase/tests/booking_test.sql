@@ -303,13 +303,13 @@ do $$ begin
 end $$;
 reset role;
 
--- 13. Cleanup job: expires holds; stays whose check-out time has passed are completed
+-- 13. Cleanup job: expires holds; paid stays whose check-out time has passed are completed
 update public.bookings set hold_expires_at = now() - interval '1 second' where status = 'held';
-insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total)
+insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total, amount_paid)
 values ('HRDONE0001', '00000000-0000-0000-0000-000000000001', 'Stayed', 'stayed@example.com',
-        (now() at time zone 'Asia/Manila')::date - 3, (now() at time zone 'Asia/Manila')::date - 1, 'confirmed', 100),
+        (now() at time zone 'Asia/Manila')::date - 3, (now() at time zone 'Asia/Manila')::date - 1, 'confirmed', 100, 100),
        ('HRLATE0001', '00000000-0000-0000-0000-000000000001', 'Arriving tonight', 'night@example.com',
-        (now() at time zone 'Asia/Manila')::date, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100);
+        (now() at time zone 'Asia/Manila')::date, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 100, 100);
 set role service_role;
 do $$ declare r json; begin
   r := public.expire_holds_and_no_shows();
@@ -441,7 +441,8 @@ do $$ declare d json; begin
 end $$;
 reset role;
 
--- 19. Staff accounts: admins add admins by email; invites apply once the email is confirmed
+-- 19. Staff accounts: admins invite admins by email; an invite applies only to a session
+--     that signed in through that inbox (email link, code or reset)
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
 do $$ begin
@@ -452,10 +453,10 @@ do $$ begin
 end $$;
 select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
 do $$ declare r json; n int; begin
-  -- existing account: access changes now
+  -- existing account: still an invite, so a stranger who signed up with the address gains nothing
   r := public.set_staff_role('  Ben@Example.com ', 'admin');
-  assert r->>'status' = 'updated', format('expected updated %s', r);
-  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'admin';
+  assert r->>'status' = 'invited', format('expected invited %s', r);
+  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'guest';
   -- no account yet: saved as an invite
   r := public.set_staff_role('new.clerk@example.com', 'admin', 'Nina Santos');
   assert r->>'status' = 'invited', format('expected invited %s', r);
@@ -471,13 +472,35 @@ do $$ declare r json; n int; begin
 end $$;
 reset role;
 select set_config('request.jwt.claims', '', false);
--- the invited person confirms their email and gets access
+-- a new sign-up never gets the invite by itself
 insert into auth.users (id, email, raw_user_meta_data) values
   ('55555555-5555-5555-5555-555555555555', 'New.Clerk@example.com', '{}');
+do $$ begin
+  assert (select role from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'guest', 'sign-up must not apply an invite';
+end $$;
+set role authenticated;
+-- signed in with a password: the inbox isn't proven, so the invite waits
+select set_config('request.jwt.claims', '{"sub":"55555555-5555-5555-5555-555555555555","amr":[{"method":"password"}]}', false);
+do $$ begin
+  assert public.claim_staff_invite() = 'needs_email_sign_in';
+  assert (select role from public.profiles where id = auth.uid()) = 'guest', 'password session must not claim';
+end $$;
+-- signed in from the email link: the invite applies
+select set_config('request.jwt.claims', '{"sub":"55555555-5555-5555-5555-555555555555","amr":[{"method":"otp"}]}', false);
+do $$ begin
+  assert public.claim_staff_invite() = 'admin';
+  assert public.claim_staff_invite() is null, 'invite should be used up';
+end $$;
+-- Ben claims his invite the same way
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","amr":[{"method":"magiclink"}]}', false);
+do $$ begin assert public.claim_staff_invite() = 'admin'; end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
 do $$ begin
   assert (select role from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'admin', 'invite role not applied';
   assert (select full_name from public.profiles where id = '55555555-5555-5555-5555-555555555555') = 'Nina Santos', 'invite name not applied';
   assert not exists (select 1 from public.staff_invites where email = 'new.clerk@example.com'), 'invite not cleared';
+  assert (select role from public.profiles where id = '22222222-2222-2222-2222-222222222222') = 'admin';
 end $$;
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
@@ -607,7 +630,7 @@ do $$ begin
 end $$;
 select set_config('request.jwt.claims', '{"sub":"44444444-4444-4444-4444-444444444444"}', false);
 do $$ begin
-  -- invites wait for a confirmed email
+  -- an unconfirmed account, or one not made yet, only gets an invite
   perform public.set_staff_role('late.confirm@example.com', 'admin');
   perform public.set_staff_role('unconfirmed@example.com', 'admin');
   assert exists (select 1 from public.list_staff() where email = 'unconfirmed@example.com' and status = 'invited'), 'unconfirmed account should get an invite, not the role';
@@ -618,11 +641,10 @@ insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) value
   ('88888888-8888-8888-8888-888888888888', 'late.confirm@example.com', '{}', null);
 do $$ begin
   assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'guest', 'unconfirmed sign-up must stay a guest';
+  -- confirming the email no longer applies the invite on its own (autoconfirm makes this unprovable)
   update auth.users set email_confirmed_at = now() where id = '88888888-8888-8888-8888-888888888888';
-  assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'admin', 'role applies on confirmation';
-  assert not exists (select 1 from public.staff_invites where email = 'late.confirm@example.com');
-  update auth.users set email_confirmed_at = now() where id = '66666666-6666-6666-6666-666666666666';
-  assert (select role from public.profiles where id = '66666666-6666-6666-6666-666666666666') = 'admin';
+  assert (select role from public.profiles where id = '88888888-8888-8888-8888-888888888888') = 'guest', 'confirmation alone must not apply an invite';
+  assert exists (select 1 from public.staff_invites where email = 'late.confirm@example.com');
   raise notice 'PASS 20 pay at hotel and QA fixes';
 end $$;
 
@@ -677,6 +699,28 @@ do $$ declare r json; begin
   r := public.cancel_booking((select v::uuid from t where k = 'started'));
   assert r->>'status' = 'cancelled', 'admin can still cancel';
   raise notice 'PASS 22 guests cancel online only before check-in';
+end $$;
+reset role;
+
+-- 23. Only paid stays complete on their own; unpaid ones wait for the desk
+insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total, amount_paid)
+values ('HRUNPAID01', '00000000-0000-0000-0000-000000000001', 'Never came', 'gone@example.com',
+        (now() at time zone 'Asia/Manila')::date - 3, (now() at time zone 'Asia/Manila')::date - 2, 'confirmed', 100, 0),
+       ('HRPAID0001', '00000000-0000-0000-0000-000000000001', 'Paid at desk', 'paid@example.com',
+        (now() at time zone 'Asia/Manila')::date - 3, (now() at time zone 'Asia/Manila')::date - 2, 'confirmed', 100, 100);
+insert into t select 'unpaid_past', id::text from public.bookings where code = 'HRUNPAID01';
+insert into t select 'paid_past', id::text from public.bookings where code = 'HRPAID0001';
+do $$ begin
+  perform public.expire_holds_and_no_shows();
+  assert (select status from public.bookings where id = (select v::uuid from t where k = 'paid_past')) = 'checked_out', 'paid stay should complete';
+  assert (select status from public.bookings where id = (select v::uuid from t where k = 'unpaid_past')) = 'confirmed', 'unpaid stay must wait for the desk';
+end $$;
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare r json; begin
+  r := public.mark_no_show((select v::uuid from t where k = 'unpaid_past'));
+  assert r->>'status' = 'no_show';
+  raise notice 'PASS 23 only paid stays complete on their own';
 end $$;
 reset role;
 
