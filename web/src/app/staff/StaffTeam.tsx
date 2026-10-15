@@ -45,7 +45,7 @@ export function TeamTab() {
     const status = (data as { status: string }).status;
     setNotice(
       status === "invited"
-        ? `${email} is added. They get access after they sign in on the website with this email and confirm it.`
+        ? `${email} is added. To get access they sign in on the website with “Email me a sign-in link”, which proves the address is theirs.`
         : status === "removed"
           ? `${email} no longer has access to the staff portal.`
           : `${email} now has access to the staff portal.`,
@@ -102,7 +102,7 @@ export function TeamTab() {
                     <p className="flex flex-wrap items-center gap-2 font-semibold">
                       <span className="truncate">{m.full_name || m.email}</span>
                       {me && <span className="rounded-full bg-sea-tint px-2 py-0.5 text-xs font-semibold text-sea">You</span>}
-                      {m.status === "invited" && <span className="rounded-full bg-sun-tint px-2 py-0.5 text-xs font-semibold text-sun">Not signed in yet</span>}
+                      {m.status === "invited" && <span className="rounded-full bg-sun-tint px-2 py-0.5 text-xs font-semibold text-sun">Waiting for email sign-in</span>}
                     </p>
                     {m.full_name && <p className="truncate text-sm text-muted">{m.email}</p>}
                     <p className="text-xs text-muted">

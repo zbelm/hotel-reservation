@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'auth.dart';
 import 'config.dart';
 import 'i18n.dart';
 import 'screens/bookings_screen.dart';
@@ -19,6 +20,7 @@ Future<void> main() async {
     return;
   }
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  listenForAuthLinks();
   runApp(const HotelApp());
 }
 
@@ -32,6 +34,8 @@ class HotelApp extends StatelessWidget {
       valueListenable: appLang,
       builder: (context, lang, _) => MaterialApp(
         title: hotelName,
+        navigatorKey: appNavigator,
+        scaffoldMessengerKey: appMessenger,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
@@ -41,7 +45,8 @@ class HotelApp extends StatelessWidget {
   }
 }
 
-/// Shows sign-in until there is a session, then the app.
+/// Shows sign-in until there is a session, then the app. Email links are handled by
+/// listenForAuthLinks() in auth.dart.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 

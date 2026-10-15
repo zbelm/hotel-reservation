@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api.dart';
+import '../auth.dart';
 import '../i18n.dart';
 import '../theme.dart';
 
 /// Lets a signed-in guest or staff member choose a password, so later sign-ins need no email.
+/// Also opened by AuthGate after a "Forgot password?" email link ([reset] = true).
 class PasswordScreen extends StatefulWidget {
-  const PasswordScreen({super.key});
+  const PasswordScreen({super.key, this.reset = false});
+
+  final bool reset;
 
   @override
   State<PasswordScreen> createState() => _PasswordScreenState();
@@ -28,12 +32,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
   }
 
   Future<void> _save() async {
-    if (_password.text.length < 8) {
-      setState(() => _error = tr('Use at least 8 characters.', 'Gumamit ng hindi bababa sa 8 character.'));
-      return;
-    }
-    if (_password.text != _again.text) {
-      setState(() => _error = tr("The two passwords don't match.", 'Hindi magkapareho ang dalawang password.'));
+    final problem = newPasswordProblem(_password.text, again: _again.text);
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
     setState(() {
@@ -59,7 +60,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           Text(
-            tr('Set a password so you can sign in with it next time, without waiting for an email.',
+            widget.reset
+                ? tr('Choose a new password for your account.', 'Pumili ng bagong password para sa account mo.')
+                : tr('Set a password so you can sign in with it next time, without waiting for an email.',
                 'Maglagay ng password para makapag-sign in ka gamit ito sa susunod, nang hindi na naghihintay ng email.'),
             style: TextStyle(color: muted, fontSize: 16),
           ),
@@ -81,7 +84,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
               autofillHints: const [AutofillHints.newPassword],
               decoration: InputDecoration(
                 labelText: tr('New password', 'Bagong password'),
-                helperText: tr('At least 8 characters.', 'Hindi bababa sa 8 character.'),
+                helperText: newPasswordHint,
               ),
             ),
             const SizedBox(height: 16),

@@ -68,7 +68,8 @@ function Detail() {
   const br = b.booking_rooms?.[0];
   const balance = Number(b.total) - Number(b.amount_paid);
   const active = ["confirmed", "checked_out"].includes(b.status);
-  const canMarkNoShow = b.status === "confirmed" && b.check_in <= todayManila();
+  // Also after check-out time, so a completed stay can still be corrected to a no-show
+  const canMarkNoShow = active && b.check_in <= todayManila();
 
   return (
     <>
@@ -79,7 +80,11 @@ function Detail() {
       </div>
       <p className="mt-1 font-mono text-muted">{b.code} · booked via {b.source.replace("_", " ")}</p>
       {b.payment_option === "pay_at_hotel" && balance > 0 && b.status === "confirmed" && (
-        <div className="mt-4"><Notice tone="warn">Pays at the hotel: collect {money(balance)} and record it below.</Notice></div>
+        <div className="mt-4"><Notice tone="warn">
+          {b.check_out <= todayManila()
+            ? `The stay has ended but ${money(balance)} isn't recorded as paid. Record the payment below, or mark a no-show if the guest never came.`
+            : `Pays at the hotel: collect ${money(balance)} and record it below.`}
+        </Notice></div>
       )}
 
       {msg && <div className="mt-5"><Notice tone={msg.tone}>{msg.text}</Notice></div>}
@@ -180,6 +185,8 @@ function ChangeDates({ booking, onDone }: { booking: Booking; onDone: (text: str
   const [quote, setQuote] = useState<ChangeQuote | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // A stay in progress can be extended or shortened, but its check-in can't move
+  const started = booking.check_in < todayManila();
 
   async function call(preview: boolean) {
     setBusy(true);
@@ -205,15 +212,17 @@ function ChangeDates({ booking, onDone }: { booking: Booking; onDone: (text: str
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-44">
           <label className="label" htmlFor="cd-in">Check-in</label>
-          <input id="cd-in" type="date" className="field" value={checkIn} onChange={(e) => { setCheckIn(e.target.value); setQuote(null); }} />
+          <input id="cd-in" type="date" className="field" value={checkIn} disabled={started}
+            onChange={(e) => { setCheckIn(e.target.value); setQuote(null); }} />
         </div>
         <div className="w-44">
           <label className="label" htmlFor="cd-out">Check-out</label>
-          <input id="cd-out" type="date" className="field" min={checkIn} value={checkOut} onChange={(e) => { setCheckOut(e.target.value); setQuote(null); }} />
+          <input id="cd-out" type="date" className="field" min={started ? todayManila() : checkIn} value={checkOut} onChange={(e) => { setCheckOut(e.target.value); setQuote(null); }} />
         </div>
         <button className="btn-quiet" disabled={busy || !checkIn || checkOut <= checkIn} onClick={() => call(true)}>Check price</button>
         <button className="btn-quiet" onClick={() => { setOpen(false); setQuote(null); setError(""); }}>Close</button>
       </div>
+      {started && <p className="mt-3 text-sm text-muted">This stay has started, so only the check-out date can change.</p>}
       {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
       {quote && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-sand p-4 text-[15px]">
