@@ -724,4 +724,36 @@ do $$ declare r json; begin
 end $$;
 reset role;
 
+-- 24. The desk can extend or shorten a stay that has started, but not move its start
+insert into public.bookings (code, property_id, guest_id, guest_name, guest_email, check_in, check_out, status, total, amount_paid)
+values ('HRINHOUSE1', '00000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'In house', 'ben@example.com',
+        (now() at time zone 'Asia/Manila')::date - 2, (now() at time zone 'Asia/Manila')::date + 1, 'confirmed', 300, 300);
+insert into public.booking_rooms (booking_id, room_type_id, rate_plan_id, nightly_prices, subtotal)
+select b.id, '00000000-0000-0000-0000-0000000000a1',
+       (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible'),
+       '[]'::jsonb, 300
+  from public.bookings b where b.code = 'HRINHOUSE1';
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare r json; bid uuid := (select id from public.bookings where code = 'HRINHOUSE1');
+  ci date := (select check_in from public.bookings where code = 'HRINHOUSE1'); begin
+  r := public.change_booking_dates(bid, ci, ci + 4, true);
+  assert (r->>'nights')::int = 4, format('extend preview %s', r);
+  r := public.change_booking_dates(bid, ci, ci + 4);
+  assert (select check_out from public.bookings where id = bid) = ci + 4, 'extend should save';
+  begin perform public.change_booking_dates(bid, ci + 1, ci + 4); raise exception 'x';
+  exception when others then assert sqlerrm like '%already started%', sqlerrm; end;
+  begin perform public.change_booking_dates(bid, ci, ci + 1); raise exception 'x';
+  exception when others then assert sqlerrm like '%earlier than today%', sqlerrm; end;
+end $$;
+-- the guest still can't change it online
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ declare bid uuid := (select id from public.bookings where code = 'HRINHOUSE1');
+  ci date := (select check_in from public.bookings where code = 'HRINHOUSE1'); begin
+  begin perform public.change_booking_dates(bid, ci, ci + 5); raise exception 'x';
+  exception when others then assert sqlerrm not like 'x', 'guest must not change a started stay'; end;
+  raise notice 'PASS 24 desk changes dates of a started stay';
+end $$;
+reset role;
+
 \echo 'All booking tests passed.'

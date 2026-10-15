@@ -257,7 +257,7 @@ function ChangeDates({ booking, refundable, onChanged }: { booking: Booking; ref
         <p className="mt-1 text-sm text-muted">{t.changeDates.current(fmtDate(booking.check_in, lang), fmtDate(booking.check_out, lang))}</p>
       </div>
       <div className="max-w-md">
-        <DateRangePicker checkIn={checkIn} checkOut={checkOut} adults={booking.adults} kids={booking.children}
+        <DateRangePicker checkIn={checkIn} checkOut={checkOut} adults={booking.adults} kids={booking.children} blockFullNights={false}
           onChange={(ci, co) => { setCheckIn(ci); setCheckOut(co); setQuote(null); }} />
       </div>
       {quote && (

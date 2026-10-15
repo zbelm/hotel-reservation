@@ -15,6 +15,11 @@ type Props = {
   kids: number;
   onChange: (checkIn: string, checkOut: string) => void;
   label?: string;
+  /**
+   * Off when changing an existing booking: the calendar counts that booking's own nights
+   * as taken and spans every room type, so the server's quote decides availability instead.
+   */
+  blockFullNights?: boolean;
 };
 
 const monthStart = (iso: string) => `${iso.slice(0, 7)}-01`;
@@ -28,14 +33,16 @@ const shortPrice = (n: number) => (n >= 10000 ? `${Math.round(n / 1000)}k` : n.t
 // One shared cache for the session: prices for a month and guest count rarely change mid-visit
 const cache = new Map<string, Record<string, Day>>();
 
-export function DateRangePicker({ checkIn, checkOut, adults, kids, onChange, label }: Props) {
+export function DateRangePicker({ checkIn, checkOut, adults, kids, onChange, label, blockFullNights = true }: Props) {
   const { t, lang } = useT();
   const today = useToday();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState("");
   const [pendingIn, setPendingIn] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
-  const [days, setDays] = useState<Record<string, Day>>({});
+  const [loaded, setDays] = useState<Record<string, Day>>({});
+  // Prices only when not blocking full nights
+  const days = blockFullNights ? loaded : Object.fromEntries(Object.entries(loaded).map(([d, v]) => [d, { ...v, available: true }]));
   const [message, setMessage] = useState("");
   const wrap = useRef<HTMLDivElement>(null);
   const panelId = useId();
