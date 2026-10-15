@@ -2,18 +2,17 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
 import { Notice, Spinner } from "@/components/ui";
+import { MIN_PASSWORD } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/i18n";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 
 // Signed-in guests and staff choose a password here, so later sign-ins don't need an email.
-// The "Forgot password?" email link also lands here (?reset=1) with a recovery session.
+// After a "Forgot password?" email link, AuthProvider sends the guest here to choose a new one.
 export function SetPassword() {
   const { t } = useT();
-  const { session, isStaff } = useRequireAuth();
-  const reset = useSearchParams().get("reset") === "1";
+  const { session, isStaff, recovering } = useRequireAuth();
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,7 +24,7 @@ export function SetPassword() {
   async function save(e: FormEvent) {
     e.preventDefault();
     setError("");
-    if (password.length < 8) return setError(t.password.tooShort);
+    if (password.length < MIN_PASSWORD) return setError(t.password.tooShort);
     if (password !== again) return setError(t.password.mismatch);
     setBusy(true);
     const { error } = await supabase().auth.updateUser({ password });
@@ -39,7 +38,7 @@ export function SetPassword() {
   return (
     <div className="card p-7">
       <h1 className="text-3xl font-semibold">{t.password.title}</h1>
-      <p className="mt-2 text-muted">{reset ? t.password.resetIntro : t.password.intro}</p>
+      <p className="mt-2 text-muted">{recovering ? t.password.resetIntro : t.password.intro}</p>
       <p className="mt-1 text-sm text-muted">{session.user.email}</p>
 
       {saved ? (
@@ -54,7 +53,7 @@ export function SetPassword() {
           <div>
             <label htmlFor="new-password" className="label">{t.password.new}</label>
             <input id="new-password" type="password" className="field" value={password} onChange={(e) => setPassword(e.target.value)}
-              required minLength={8} autoComplete="new-password" autoFocus aria-describedby="pw-hint" />
+              required minLength={MIN_PASSWORD} autoComplete="new-password" autoFocus aria-describedby="pw-hint" />
             <p id="pw-hint" className="mt-1 text-sm text-muted">{t.password.hint}</p>
           </div>
           <div>

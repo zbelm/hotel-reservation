@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api.dart';
+import '../auth.dart';
 import '../config.dart';
 import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
-
-const _minPassword = 8;
 
 enum _Mode { signIn, signUp, forgot, link }
 
@@ -70,13 +69,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _run(Future<void> Function(String email) action, {bool needsPassword = false, bool newPassword = false}) async {
     if (_busy) return;
     final email = _email.text.trim();
-    String? problem;
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      problem = tr('Enter a valid email address', 'Maglagay ng tamang email address');
-    } else if (needsPassword && _password.text.isEmpty) {
+    String? problem = emailProblem(email);
+    if (problem == null && needsPassword && _password.text.isEmpty) {
       problem = tr('Enter your password', 'Ilagay ang password mo');
-    } else if (newPassword && _password.text.length < _minPassword) {
-      problem = tr('Use at least 8 characters.', 'Gumamit ng hindi bababa sa 8 character.');
+    } else if (problem == null && newPassword) {
+      problem = newPasswordProblem(_password.text);
     }
     if (problem != null) {
       setState(() => _error = problem);
@@ -208,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
         textInputAction: TextInputAction.done,
         decoration: InputDecoration(
           labelText: isNew ? tr('Choose a password', 'Pumili ng password') : 'Password',
-          helperText: isNew ? tr('At least 8 characters.', 'Hindi bababa sa 8 character.') : null,
+          helperText: isNew ? newPasswordHint : null,
           suffixIcon: IconButton(
             tooltip: _showPassword ? tr('Hide password', 'Itago ang password') : tr('Show password', 'Ipakita ang password'),
             icon: Icon(_showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
@@ -290,6 +287,8 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () => setState(() {
               _sent = null;
               _code.clear();
+              _password.clear();
+              _error = null;
             }),
             child: Text(tr('Use a different email', 'Gumamit ng ibang email')),
           ),

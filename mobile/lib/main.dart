@@ -1,15 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'auth.dart';
 import 'config.dart';
 import 'i18n.dart';
 import 'screens/bookings_screen.dart';
 import 'screens/hotel_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/password_screen.dart';
 import 'screens/search_screen.dart';
 import 'theme.dart';
 
@@ -22,12 +20,9 @@ Future<void> main() async {
     return;
   }
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  listenForAuthLinks();
   runApp(const HotelApp());
 }
-
-// Lets AuthGate open screens and show messages from auth events, outside any widget's context
-final _navigator = GlobalKey<NavigatorState>();
-final _messenger = GlobalKey<ScaffoldMessengerState>();
 
 class HotelApp extends StatelessWidget {
   const HotelApp({super.key});
@@ -39,8 +34,8 @@ class HotelApp extends StatelessWidget {
       valueListenable: appLang,
       builder: (context, lang, _) => MaterialApp(
         title: hotelName,
-        navigatorKey: _navigator,
-        scaffoldMessengerKey: _messenger,
+        navigatorKey: appNavigator,
+        scaffoldMessengerKey: appMessenger,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
@@ -50,46 +45,19 @@ class HotelApp extends StatelessWidget {
   }
 }
 
-/// Shows sign-in until there is a session, then the app. Also reacts to email links:
-/// a password-reset link opens the new-password screen, and a broken or expired link
-/// shows a message instead of silently leaving the guest on the sign-in screen.
-class AuthGate extends StatefulWidget {
+/// Shows sign-in until there is a session, then the app. Email links are handled by
+/// listenForAuthLinks() in auth.dart.
+class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  final _auth = Supabase.instance.client.auth;
-  late final StreamSubscription<AuthState> _sub;
-
-  @override
-  void initState() {
-    super.initState();
-    _sub = _auth.onAuthStateChange.listen(
-      (state) {
-        if (!mounted) return;
-        setState(() {}); // signed in or out: rebuild to show the right screen
-        if (state.event == AuthChangeEvent.passwordRecovery) {
-          _navigator.currentState?.push(MaterialPageRoute(builder: (_) => const PasswordScreen(reset: true)));
-        }
-      },
-      onError: (Object e) => _messenger.currentState?.showSnackBar(SnackBar(
-        content: Text(tr('That sign-in link has expired or was already used. Please request a new one.',
-            'Expired na o nagamit na ang sign-in link na iyon. Humingi ng bago.')),
-      )),
+  Widget build(BuildContext context) {
+    final auth = Supabase.instance.client.auth;
+    return StreamBuilder<AuthState>(
+      stream: auth.onAuthStateChange,
+      builder: (context, _) => auth.currentSession == null ? const LoginScreen() : const HomeShell(),
     );
   }
-
-  @override
-  void dispose() {
-    _sub.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => _auth.currentSession == null ? const LoginScreen() : const HomeShell();
 }
 
 class HomeShell extends StatefulWidget {

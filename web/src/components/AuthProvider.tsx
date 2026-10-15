@@ -1,7 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
+import { readLinkError } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -12,16 +14,27 @@ type AuthState = {
   /** True until we've looked up the signed-in person's profile (or found there isn't one) */
   profileLoading: boolean;
   isStaff: boolean;
+  /** True after a "Forgot password?" link signed the guest in: they should choose a new password */
+  recovering: boolean;
+  /** Set when the page was opened from an email link that expired or was already used */
+  linkError: string | null;
   refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+
+// Read when this module first loads in the browser, before the Supabase client starts and
+// tidies the address bar. Only the sign-in page shows it, and that page renders in the browser.
+const linkError = readLinkError();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileFor, setProfileFor] = useState<string | null>(null);
+  const [recovering, setRecovering] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   async function loadProfile(s: Session | null) {
     if (!s) {
@@ -40,14 +53,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // onAuthStateChange also fires INITIAL_SESSION with the stored session (or the one
     // in an email link), so this one listener covers page load, sign-in and sign-out.
-    const { data: sub } = supabase().auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase().auth.onAuthStateChange((event, s) => {
       setSession(s);
       setLoading(false);
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      if (event === "SIGNED_OUT") setRecovering(false);
       // Run outside the auth callback, as Supabase recommends
       setTimeout(() => loadProfile(s), 0);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // A reset link can land on any page; send the guest to choose a new password
+  useEffect(() => {
+    if (recovering && pathname !== "/password") router.replace("/password");
+  }, [recovering, pathname, router]);
 
   const value: AuthState = {
     session,
@@ -55,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     profileLoading: Boolean(session && profileFor !== session.user.id),
     isStaff: profile?.role === "admin",
+    recovering,
+    linkError,
     refreshProfile: () => loadProfile(session),
   };
 

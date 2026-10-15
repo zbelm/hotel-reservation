@@ -4,13 +4,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { Notice } from "@/components/ui";
+import { MIN_PASSWORD } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/i18n";
 
 // Turn on in Vercel with NEXT_PUBLIC_GOOGLE_LOGIN=1 after enabling Google in Supabase Auth → Providers
 const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1";
-
-const MIN_PASSWORD = 8;
 
 type Mode = "signin" | "signup" | "forgot" | "link";
 
@@ -30,7 +29,7 @@ export function Login() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, linkError } = useAuth();
 
   const [mode, setMode] = useState<Mode>(params.get("mode") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
@@ -40,8 +39,12 @@ export function Login() {
   const [sent, setSent] = useState<string>(""); // the confirmation message once an email has gone out
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Opened from an expired or used email link: say so until they try again
+  const [linkNoticed, setLinkNoticed] = useState(false);
+  const shownError = error || (linkError && !linkNoticed ? t.login.linkExpired : "");
 
-  // Already signed in (or just finished signing in from an email link): go where they were headed
+  // Signed in (here, or from an email link): go where they were headed. This is the one
+  // place that navigates after sign-in, so the handlers below only report errors.
   useEffect(() => {
     if (session) router.replace(next);
   }, [session, next, router]);
@@ -54,21 +57,30 @@ export function Login() {
     return message;
   }
 
-  function switchTo(m: Mode) {
-    setMode(m);
+  // Clears what was typed for the last email, keeping the address itself
+  function startOver() {
+    setLinkNoticed(true);
     setSent("");
     setCode("");
     setPassword("");
     setError("");
   }
 
+  function switchTo(m: Mode) {
+    setMode(m);
+    startOver();
+  }
+
   // Runs one auth call with the shared busy/error handling
   async function run(action: () => Promise<string | void>) {
     setBusy(true);
     setError("");
+    setLinkNoticed(true);
     try {
       const problem = await action();
       if (problem) setError(problem);
+    } catch (err) {
+      setError(explain(err instanceof Error ? err.message : String(err)));
     } finally {
       setBusy(false);
     }
@@ -81,7 +93,6 @@ export function Login() {
     run(async () => {
       const { error } = await supabase().auth.signInWithPassword({ email: email.trim(), password });
       if (error) return explain(error.message);
-      router.replace(next);
     });
   }
 
@@ -98,9 +109,8 @@ export function Login() {
       if (error) return explain(error.message);
       // Supabase hides existing accounts by returning a user with no identities
       if (data.user && data.user.identities?.length === 0) return t.login.exists;
-      // Email confirmation off: signed in straight away
-      if (data.session) return router.replace(next);
-      setSent(t.login.confirmSent(address));
+      // With email confirmation off there is a session already, and the effect above redirects
+      if (!data.session) setSent(t.login.confirmSent(address));
     });
   }
 
@@ -109,7 +119,7 @@ export function Login() {
     run(async () => {
       const address = email.trim();
       const { error } = await supabase().auth.resetPasswordForEmail(address, {
-        redirectTo: `${window.location.origin}/password?reset=1`,
+        redirectTo: `${window.location.origin}/password`,
       });
       if (error) return explain(error.message);
       setSent(t.login.resetSent(address));
@@ -132,7 +142,6 @@ export function Login() {
     run(async () => {
       const { error } = await supabase().auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
       if (error) return explain(error.message);
-      router.replace(next);
     });
   }
 
@@ -208,7 +217,7 @@ export function Login() {
               <button className="btn-primary" disabled={busy || code.length < 6}>{busy ? t.login.checking : t.login.signIn}</button>
             </form>
           )}
-          <button type="button" className="text-sm text-muted hover:text-ink" onClick={() => setSent("")}>{t.login.other}</button>
+          <button type="button" className="text-sm text-muted hover:text-ink" onClick={startOver}>{t.login.other}</button>
         </div>
       ) : mode === "signin" ? (
         <form onSubmit={signIn} className="mt-6 grid gap-4">
@@ -234,7 +243,7 @@ export function Login() {
         </form>
       )}
 
-      {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}
+      {shownError && <div className="mt-4"><Notice tone="error">{shownError}</Notice></div>}
 
       <div className="mt-5 grid justify-items-start gap-2 text-sm">
         {mode === "forgot" || mode === "link" ? (
