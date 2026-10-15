@@ -240,6 +240,8 @@ export function Login() {
           {emailField}
           {passwordField(false)}
           <button className="btn-primary" disabled={busy}>{busy ? t.login.checking : t.login.signIn}</button>
+          {/* Accounts made with an email link have no password they know, so this sits right under Sign in */}
+          <button type="button" className="btn-quiet" onClick={() => switchTo("link")}>{t.login.noPassword}</button>
         </form>
       ) : mode === "signup" ? (
         <form onSubmit={signUp} className="mt-6 grid gap-4">
@@ -272,9 +274,9 @@ export function Login() {
       <div className="mt-5 grid justify-items-start gap-2 text-sm">
         {mode === "forgot" || mode === "link" ? (
           <button type="button" className="font-semibold text-sea hover:underline" onClick={() => switchTo("signin")}>{t.login.backToSignIn}</button>
-        ) : (
+        ) : mode === "signup" ? (
           <button type="button" className="font-semibold text-sea hover:underline" onClick={() => switchTo("link")}>{t.login.useLink}</button>
-        )}
+        ) : null}
       </div>
 
       {googleEnabled && (mode === "signin" || mode === "signup") && (

@@ -41,8 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final msg = errorText(e);
     bool has(String pattern) => RegExp(pattern, caseSensitive: false).hasMatch(msg);
     if (has('invalid login credentials')) {
-      return tr('Wrong email or password. Try again, or tap "Forgot password?".',
-          'Mali ang email o password. Subukan ulit, o pindutin ang "Nakalimutan ang password?".');
+      return tr('Wrong email or password. If you used to sign in with an email link, you may not have a password yet: tap "Email me a link or code" below.',
+          'Mali ang email o password. Kung email link ang gamit mo dati, baka wala ka pang password: pindutin ang "Ipadala ang link o code" sa ibaba.');
     }
     if (has('email not confirmed')) {
       return tr('Please confirm your email first. Check your inbox for the link we sent.',
@@ -186,11 +186,14 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
-              child: _mode == _Mode.forgot || _mode == _Mode.link
-                  ? TextButton(onPressed: () => _switch(_Mode.signIn), child: Text(tr('Back to sign in', 'Bumalik sa sign in')))
-                  : TextButton(
-                      onPressed: () => _switch(_Mode.link),
-                      child: Text(tr('Sign in with an email link or code instead', 'Mag-sign in na lang gamit ang email link o code'))),
+              child: switch (_mode) {
+                _Mode.forgot || _Mode.link =>
+                  TextButton(onPressed: () => _switch(_Mode.signIn), child: Text(tr('Back to sign in', 'Bumalik sa sign in'))),
+                _Mode.signUp => TextButton(
+                    onPressed: () => _switch(_Mode.link),
+                    child: Text(tr('Sign in with an email link or code instead', 'Mag-sign in na lang gamit ang email link o code'))),
+                _Mode.signIn => const SizedBox.shrink(),
+              },
             ),
           ],
         ),
@@ -242,6 +245,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () => _switch(_Mode.forgot), child: Text(tr('Forgot password?', 'Nakalimutan ang password?'))),
             ),
             _submit(tr('Sign in', 'Mag-sign in'), tr('Signing in…', 'Sina-sign in…'), _signIn),
+            const SizedBox(height: 12),
+            // Accounts made with an email link have no password they know, so this sits right under Sign in
+            OutlinedButton(
+                onPressed: () => _switch(_Mode.link), child: Text(tr('Email me a link or code', 'Ipadala ang link o code'))),
           ],
         _Mode.signUp => [
             AutofillGroup(
