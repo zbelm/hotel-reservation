@@ -18,6 +18,8 @@ type AuthState = {
   recovering: boolean;
   /** Set when the page was opened from an email link that expired or was already used */
   linkError: string | null;
+  /** Hides linkError once the guest has moved on (tried again or signed in) */
+  dismissLinkError: () => void;
   refreshProfile: () => Promise<void>;
 };
 
@@ -25,7 +27,7 @@ const AuthContext = createContext<AuthState | null>(null);
 
 // Read when this module first loads in the browser, before the Supabase client starts and
 // tidies the address bar. Only the sign-in page shows it, and that page renders in the browser.
-const linkError = readLinkError();
+const initialLinkError = readLinkError();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileFor, setProfileFor] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
+  const [linkError, setLinkError] = useState(initialLinkError);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -57,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setLoading(false);
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
-      if (event === "SIGNED_OUT") setRecovering(false);
+      // New password saved, or signed out: the reset is over
+      if (event === "USER_UPDATED" || event === "SIGNED_OUT") setRecovering(false);
+      if (event === "SIGNED_IN") setLinkError(null);
       // Run outside the auth callback, as Supabase recommends
       setTimeout(() => loadProfile(s), 0);
     });
@@ -77,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isStaff: profile?.role === "admin",
     recovering,
     linkError,
+    dismissLinkError: () => setLinkError(null),
     refreshProfile: () => loadProfile(session),
   };
 

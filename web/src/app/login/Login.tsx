@@ -29,7 +29,7 @@ export function Login() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
   const router = useRouter();
-  const { session, linkError } = useAuth();
+  const { session, linkError, dismissLinkError } = useAuth();
 
   const [mode, setMode] = useState<Mode>(params.get("mode") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
@@ -40,8 +40,7 @@ export function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // Opened from an expired or used email link: say so until they try again
-  const [linkNoticed, setLinkNoticed] = useState(false);
-  const shownError = error || (linkError && !linkNoticed ? t.login.linkExpired : "");
+  const shownError = error || (linkError ? t.login.linkExpired : "");
 
   // Signed in (here, or from an email link): go where they were headed. This is the one
   // place that navigates after sign-in, so the handlers below only report errors.
@@ -59,7 +58,7 @@ export function Login() {
 
   // Clears what was typed for the last email, keeping the address itself
   function startOver() {
-    setLinkNoticed(true);
+    dismissLinkError();
     setSent("");
     setCode("");
     setPassword("");
@@ -75,7 +74,7 @@ export function Login() {
   async function run(action: () => Promise<string | void>) {
     setBusy(true);
     setError("");
-    setLinkNoticed(true);
+    dismissLinkError();
     try {
       const problem = await action();
       if (problem) setError(problem);
