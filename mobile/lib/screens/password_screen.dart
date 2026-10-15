@@ -6,8 +6,11 @@ import '../i18n.dart';
 import '../theme.dart';
 
 /// Lets a signed-in guest or staff member choose a password, so later sign-ins need no email.
+/// Also opened by AuthGate after a "Forgot password?" email link ([reset] = true).
 class PasswordScreen extends StatefulWidget {
-  const PasswordScreen({super.key});
+  const PasswordScreen({super.key, this.reset = false});
+
+  final bool reset;
 
   @override
   State<PasswordScreen> createState() => _PasswordScreenState();
@@ -59,7 +62,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           Text(
-            tr('Set a password so you can sign in with it next time, without waiting for an email.',
+            widget.reset
+                ? tr('Choose a new password for your account.', 'Pumili ng bagong password para sa account mo.')
+                : tr('Set a password so you can sign in with it next time, without waiting for an email.',
                 'Maglagay ng password para makapag-sign in ka gamit ito sa susunod, nang hindi na naghihintay ng email.'),
             style: TextStyle(color: muted, fontSize: 16),
           ),

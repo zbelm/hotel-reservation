@@ -17,7 +17,6 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -39,14 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    const sb = supabase();
-    sb.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      await loadProfile(data.session);
-      setLoading(false);
-    });
-    const { data: sub } = sb.auth.onAuthStateChange((_event, s) => {
+    // onAuthStateChange also fires INITIAL_SESSION with the stored session (or the one
+    // in an email link), so this one listener covers page load, sign-in and sign-out.
+    const { data: sub } = supabase().auth.onAuthStateChange((_event, s) => {
       setSession(s);
+      setLoading(false);
       // Run outside the auth callback, as Supabase recommends
       setTimeout(() => loadProfile(s), 0);
     });

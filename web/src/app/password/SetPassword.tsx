@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { Notice, Spinner } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/i18n";
 import { useRequireAuth } from "@/lib/useRequireAuth";
 
-// Signed-in guests and staff choose a password here, so later sign-ins don't need an email
+// Signed-in guests and staff choose a password here, so later sign-ins don't need an email.
+// The "Forgot password?" email link also lands here (?reset=1) with a recovery session.
 export function SetPassword() {
   const { t } = useT();
   const { session, isStaff } = useRequireAuth();
+  const reset = useSearchParams().get("reset") === "1";
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,7 +39,7 @@ export function SetPassword() {
   return (
     <div className="card p-7">
       <h1 className="text-3xl font-semibold">{t.password.title}</h1>
-      <p className="mt-2 text-muted">{t.password.intro}</p>
+      <p className="mt-2 text-muted">{reset ? t.password.resetIntro : t.password.intro}</p>
       <p className="mt-1 text-sm text-muted">{session.user.email}</p>
 
       {saved ? (

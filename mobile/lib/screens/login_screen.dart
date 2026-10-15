@@ -7,6 +7,10 @@ import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
+const _minPassword = 8;
+
+enum _Mode { signIn, signUp, forgot, link }
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,8 +22,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _code = TextEditingController();
   final _password = TextEditingController();
-  bool _useLink = false;
-  bool _sent = false;
+  _Mode _mode = _Mode.signIn;
+  bool _showPassword = false;
+  String? _sent; // the confirmation message once an email has gone out
   bool _busy = false;
   String? _error;
 
@@ -33,48 +38,48 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _explain(Object e) {
     final msg = errorText(e);
-    if (RegExp('invalid login credentials', caseSensitive: false).hasMatch(msg)) {
-      return tr("Wrong email or password. If you haven't set a password yet, use the email link once, then set one in My stays.",
-          'Mali ang email o password. Kung wala ka pang password, gamitin muna ang email link, saka maglagay ng password sa Mga booking ko.');
+    bool has(String pattern) => RegExp(pattern, caseSensitive: false).hasMatch(msg);
+    if (has('invalid login credentials')) {
+      return tr('Wrong email or password. Try again, or tap "Forgot password?".',
+          'Mali ang email o password. Subukan ulit, o pindutin ang "Nakalimutan ang password?".');
     }
-    if (RegExp('rate limit|too many', caseSensitive: false).hasMatch(msg)) {
-      return tr('Too many sign-in emails were sent in the last hour. Sign in with your password, or try the email link again in about an hour.',
-          'Masyadong maraming sign-in email ngayong oras. Mag-sign in gamit ang password, o subukan ulit ang email link pagkalipas ng mga isang oras.');
+    if (has('email not confirmed')) {
+      return tr('Please confirm your email first. Check your inbox for the link we sent.',
+          'Kumpirmahin muna ang email mo. Tingnan sa inbox ang link na ipinadala namin.');
+    }
+    if (has('already registered|already exists')) return _existsText;
+    if (has('rate limit|too many')) {
+      return tr('Too many emails were sent in the last hour. Please try again later, or sign in with your password.',
+          'Masyadong maraming email ang naipadala ngayong oras. Subukan ulit mamaya, o mag-sign in gamit ang password.');
     }
     return msg;
   }
 
-  Future<void> _signInWithPassword() async {
-    final email = _email.text.trim();
-    if (!email.contains('@') || _password.text.isEmpty) {
-      setState(() => _error = tr('Enter your email and password', 'Ilagay ang email at password mo'));
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      // On success AuthGate sees the new session and shows the app
-      await db.auth.signInWithPassword(email: email, password: _password.text);
-    } catch (e) {
-      if (mounted) setState(() => _error = _explain(e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  String get _existsText => tr('An account with this email already exists. Sign in instead, or reset your password.',
+      'May account na ang email na ito. Mag-sign in na lang, o i-reset ang password.');
 
-  void _switch(bool useLink) => setState(() {
-        _useLink = useLink;
-        _sent = false;
+  void _switch(_Mode mode) => setState(() {
+        _mode = mode;
+        _sent = null;
         _code.clear();
+        _password.clear();
         _error = null;
       });
 
-  Future<void> _sendCode() async {
+  /// Checks the email (and password when needed), then runs one auth call with shared busy/error handling.
+  Future<void> _run(Future<void> Function(String email) action, {bool needsPassword = false, bool newPassword = false}) async {
+    if (_busy) return;
     final email = _email.text.trim();
-    if (!email.contains('@')) {
-      setState(() => _error = tr('Enter a valid email address', 'Maglagay ng tamang email address'));
+    String? problem;
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      problem = tr('Enter a valid email address', 'Maglagay ng tamang email address');
+    } else if (needsPassword && _password.text.isEmpty) {
+      problem = tr('Enter your password', 'Ilagay ang password mo');
+    } else if (newPassword && _password.text.length < _minPassword) {
+      problem = tr('Use at least 8 characters.', 'Gumamit ng hindi bababa sa 8 character.');
+    }
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
     setState(() {
@@ -82,8 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await db.auth.signInWithOtp(email: email, emailRedirectTo: authRedirect);
-      if (mounted) setState(() => _sent = true);
+      await action(email);
     } catch (e) {
       if (mounted) setState(() => _error = _explain(e));
     } finally {
@@ -91,24 +95,57 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _verify() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      // On success AuthGate sees the new session and shows the app
-      await db.auth.verifyOTP(type: OtpType.email, email: _email.text.trim(), token: _code.text.trim());
-    } catch (e) {
-      if (mounted) setState(() => _error = _explain(e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  // On success AuthGate sees the new session and shows the app
+  Future<void> _signIn() => _run((email) => db.auth.signInWithPassword(email: email, password: _password.text), needsPassword: true);
+
+  Future<void> _signUp() => _run((email) async {
+        final res = await db.auth.signUp(email: email, password: _password.text, emailRedirectTo: authRedirect);
+        // Supabase hides existing accounts by returning a user with no identities
+        if (res.user != null && (res.user!.identities?.isEmpty ?? false)) throw AuthException(_existsText);
+        if (res.session == null && mounted) {
+          setState(() => _sent = tr(
+              'Almost done. We sent a confirmation link to $email. Open it on this phone to finish creating your account.',
+              'Malapit na. Nagpadala kami ng confirmation link sa $email. Buksan ito sa teleponong ito para matapos ang account mo.'));
+        }
+      }, newPassword: true);
+
+  Future<void> _sendReset() => _run((email) async {
+        await db.auth.resetPasswordForEmail(email, redirectTo: authRedirect);
+        if (mounted) {
+          setState(() => _sent = tr(
+              'If $email has an account, a reset link is on its way. Open it on this phone to choose a new password.',
+              'Kung may account ang $email, papunta na ang reset link. Buksan ito sa teleponong ito para pumili ng bagong password.'));
+        }
+      });
+
+  Future<void> _sendLink() => _run((email) async {
+        await db.auth.signInWithOtp(email: email, emailRedirectTo: authRedirect);
+        if (mounted) {
+          setState(() => _sent = tr(
+              'Open the email we sent to $email on this phone and tap the sign-in link. The app opens and signs you in.',
+              'Buksan sa teleponong ito ang email na ipinadala namin sa $email at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'));
+        }
+      });
+
+  Future<void> _verify() =>
+      _run((email) => db.auth.verifyOTP(type: OtpType.email, email: email, token: _code.text.trim()));
 
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final (title, intro) = switch (_mode) {
+      _Mode.signIn => (tr('Sign in to book\nyour stay', 'Mag-sign in para\nmag-book'),
+          tr('Welcome back. Sign in to book and manage your stays.', 'Maligayang pagbabalik. Mag-sign in para mag-book at makita ang mga booking mo.')),
+      _Mode.signUp => (tr('Create your\naccount', 'Gumawa ng\naccount'),
+          tr('Book faster and see all your stays in one place.', 'Mas mabilis mag-book at makikita mo ang lahat ng booking mo sa isang lugar.')),
+      _Mode.forgot => (tr('Reset your\npassword', 'I-reset ang\npassword'),
+          tr("Enter your email and we'll send you a link to choose a new password.",
+              'Ilagay ang email mo at magpapadala kami ng link para pumili ng bagong password.')),
+      _Mode.link => (tr('Sign in with\nan email link', 'Mag-sign in gamit\nang email link'),
+          tr("We'll email you a link that signs you in, no password needed.",
+              'Magpapadala kami ng link na magsa-sign in sa iyo, walang password na kailangan.')),
+    };
+
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -119,101 +156,143 @@ class _LoginScreenState extends State<LoginScreen> {
             Text(hotelName.toUpperCase(),
                 style: TextStyle(letterSpacing: 2, fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
             const SizedBox(height: 12),
-            Text(tr('Sign in to book\nyour stay', 'Mag-sign in para\nmag-book'), style: displayStyle(context, 36)),
+            Text(title, style: displayStyle(context, 36)),
             const SizedBox(height: 12),
-            Text(
-                _useLink
-                    ? tr("We'll email you a link that signs you in. After that, set a password in My stays so you don't need emails again.",
-                        'Magpapadala kami ng link na magsa-sign in sa iyo. Pagkatapos, maglagay ng password sa Mga booking ko para hindi na kailangan ng email.')
-                    : tr('Sign in with your email and password.', 'Mag-sign in gamit ang email at password mo.'),
-                style: TextStyle(color: muted, fontSize: 16)),
-            const SizedBox(height: 32),
-            if (!_useLink) ...[
-              AutofillGroup(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _password,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    onSubmitted: (_) => _signInWithPassword(),
-                  ),
-                ]),
+            Text(intro, style: TextStyle(color: muted, fontSize: 16)),
+            const SizedBox(height: 24),
+            if (_mode == _Mode.signIn || _mode == _Mode.signUp) ...[
+              SegmentedButton<_Mode>(
+                segments: [
+                  ButtonSegment(value: _Mode.signIn, label: Text(tr('Sign in', 'Mag-sign in'))),
+                  ButtonSegment(value: _Mode.signUp, label: Text(tr('Create account', 'Gumawa ng account'))),
+                ],
+                selected: {_mode},
+                showSelectedIcon: false,
+                onSelectionChanged: (s) => _switch(s.first),
               ),
-              const SizedBox(height: 16),
-              FilledButton(
-                  onPressed: _busy ? null : _signInWithPassword,
-                  child: Text(_busy ? tr('Signing in…', 'Sina-sign in…') : tr('Sign in', 'Mag-sign in'))),
-              const SizedBox(height: 16),
-              Text(tr('First time, or forgot your password?', 'Unang beses, o nakalimutan ang password?'), style: TextStyle(color: muted)),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () => _switch(true),
-                  child: Text(tr('Email me a sign-in link', 'Ipadala ang sign-in link sa email ko')),
-                ),
-              ),
-            ] else if (!_sent) ...[
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autofillHints: const [AutofillHints.email],
-                decoration: const InputDecoration(labelText: 'Email'),
-                onSubmitted: (_) => _sendCode(),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _busy ? null : _sendCode, child: Text(_busy ? tr('Sending…', 'Ipinapadala…') : tr('Email me a sign-in link', 'Ipadala ang sign-in link'))),
-              TextButton(
-                onPressed: () => _switch(false),
-                child: Text(tr('Sign in with a password instead', 'Mag-sign in gamit ang password')),
-              ),
-            ] else ...[
-              Text(
-                tr('Open the email we sent to ${_email.text.trim()} on this phone and tap the sign-in link. The app opens and signs you in.',
-                    'Buksan sa teleponong ito ang email na ipinadala namin sa ${_email.text.trim()} at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'),
-                style: TextStyle(color: muted, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(tr('If your email shows a 6-digit code instead, type it here:', 'Kung 6-digit na code ang nasa email, ilagay ito rito:'),
-                  style: TextStyle(color: muted)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _code,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 28, letterSpacing: 12, fontWeight: FontWeight.w600),
-                decoration: InputDecoration(labelText: tr('6-digit code (optional)', '6-digit na code (opsyonal)'), counterText: ''),
-                onChanged: (v) {
-                  if (v.length == 6) _verify();
-                },
-              ),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _busy ? null : _verify, child: Text(_busy ? tr('Checking…', 'Sinusuri…') : tr('Sign in', 'Mag-sign in'))),
-              TextButton(
-                onPressed: () => setState(() {
-                  _sent = false;
-                  _code.clear();
-                }),
-                child: Text(tr('Use a different email', 'Gumamit ng ibang email')),
-              ),
+              const SizedBox(height: 24),
             ],
+            if (_sent != null) ..._sentView(muted) else ..._form(),
             if (_error != null) ...[
               const SizedBox(height: 16),
               Text(_error!, style: TextStyle(color: tones(context).bad)),
             ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _mode == _Mode.forgot || _mode == _Mode.link
+                  ? TextButton(onPressed: () => _switch(_Mode.signIn), child: Text(tr('Back to sign in', 'Bumalik sa sign in')))
+                  : TextButton(
+                      onPressed: () => _switch(_Mode.link),
+                      child: Text(tr('Email me a sign-in link instead', 'Ipadala na lang ang sign-in link sa email ko'))),
+            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _emailField({required VoidCallback onSubmit, bool last = false}) => TextField(
+        controller: _email,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email],
+        textInputAction: last ? TextInputAction.done : TextInputAction.next,
+        decoration: const InputDecoration(labelText: 'Email'),
+        onSubmitted: last ? (_) => onSubmit() : null,
+      );
+
+  Widget _passwordField({required bool isNew, required VoidCallback onSubmit}) => TextField(
+        controller: _password,
+        obscureText: !_showPassword,
+        autofillHints: [isNew ? AutofillHints.newPassword : AutofillHints.password],
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: isNew ? tr('Choose a password', 'Pumili ng password') : 'Password',
+          helperText: isNew ? tr('At least 8 characters.', 'Hindi bababa sa 8 character.') : null,
+          suffixIcon: IconButton(
+            tooltip: _showPassword ? tr('Hide password', 'Itago ang password') : tr('Show password', 'Ipakita ang password'),
+            icon: Icon(_showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+            onPressed: () => setState(() => _showPassword = !_showPassword),
+          ),
+        ),
+        onSubmitted: (_) => onSubmit(),
+      );
+
+  Widget _submit(String label, String busyLabel, VoidCallback onPressed) =>
+      FilledButton(onPressed: _busy ? null : onPressed, child: Text(_busy ? busyLabel : label));
+
+  List<Widget> _form() => switch (_mode) {
+        _Mode.signIn => [
+            AutofillGroup(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _emailField(onSubmit: _signIn),
+                const SizedBox(height: 16),
+                _passwordField(isNew: false, onSubmit: _signIn),
+              ]),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                  onPressed: () => _switch(_Mode.forgot), child: Text(tr('Forgot password?', 'Nakalimutan ang password?'))),
+            ),
+            _submit(tr('Sign in', 'Mag-sign in'), tr('Signing in…', 'Sina-sign in…'), _signIn),
+          ],
+        _Mode.signUp => [
+            AutofillGroup(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _emailField(onSubmit: _signUp),
+                const SizedBox(height: 16),
+                _passwordField(isNew: true, onSubmit: _signUp),
+              ]),
+            ),
+            const SizedBox(height: 24),
+            _submit(tr('Create account', 'Gumawa ng account'), tr('Creating your account…', 'Ginagawa ang account mo…'), _signUp),
+          ],
+        _Mode.forgot => [
+            _emailField(onSubmit: _sendReset, last: true),
+            const SizedBox(height: 24),
+            _submit(tr('Send reset link', 'Ipadala ang reset link'), tr('Sending…', 'Ipinapadala…'), _sendReset),
+          ],
+        _Mode.link => [
+            _emailField(onSubmit: _sendLink, last: true),
+            const SizedBox(height: 24),
+            _submit(tr('Email me a sign-in link', 'Ipadala ang sign-in link'), tr('Sending…', 'Ipinapadala…'), _sendLink),
+          ],
+      };
+
+  List<Widget> _sentView(Color muted) => [
+        Text(_sent!, style: TextStyle(color: tones(context).good, fontSize: 16, fontWeight: FontWeight.w600)),
+        if (_mode == _Mode.link) ...[
+          const SizedBox(height: 16),
+          Text(tr('If your email shows a 6-digit code instead, type it here:', 'Kung 6-digit na code ang nasa email, ilagay ito rito:'),
+              style: TextStyle(color: muted)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _code,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 28, letterSpacing: 12, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(labelText: tr('6-digit code', '6-digit na code'), counterText: ''),
+            // Submits once on the 6th digit; _run ignores repeats while busy
+            onChanged: (v) {
+              if (v.length == 6) _verify();
+            },
+          ),
+          const SizedBox(height: 16),
+          _submit(tr('Sign in', 'Mag-sign in'), tr('Checking…', 'Sinusuri…'), _verify),
+        ],
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => setState(() {
+              _sent = null;
+              _code.clear();
+            }),
+            child: Text(tr('Use a different email', 'Gumamit ng ibang email')),
+          ),
+        ),
+      ];
 }
