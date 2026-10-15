@@ -19,7 +19,7 @@ Future<void> main() async {
     runApp(const _MissingConfig());
     return;
   }
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   listenForAuthLinks();
   runApp(const HotelApp());
 }

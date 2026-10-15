@@ -241,7 +241,7 @@ class _PriceCalendarState extends State<_PriceCalendar> {
     }
 
     final label = '${niceDate(isoDate(d), year: true)}'
-        '${full ? tr(', full', ', puno') : info?.price != null ? tr(', from ${money(info!.price)}', ', mula ${money(info!.price)}') : ''}';
+        '${full ? tr(', full', ', puno') : info?.price != null ? tr(', from ${money(info!.price)}', ', mula ${money(info.price)}') : ''}';
 
     final fg = isEnd
         ? scheme.onPrimary
