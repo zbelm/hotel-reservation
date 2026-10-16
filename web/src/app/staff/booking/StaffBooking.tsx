@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BookingBadge, Notice, Spinner } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { guests, money, niceDate, todayManila } from "@/lib/format";
-import { BOOKING_SELECT, type Booking } from "@/lib/types";
+import { guests, money, niceDate, niceTime, todayManila } from "@/lib/format";
+import { STAFF_BOOKING_SELECT, type Booking } from "@/lib/types";
 // The staff layout (StaffShell) already limits this page to admins
 export function StaffBooking() {
   return <Detail />;
@@ -18,7 +18,7 @@ type Payment = { id: string; amount: number; method: string | null; provider: st
 async function fetchDetail(id: string) {
   const sb = supabase();
   const [bk, pay] = await Promise.all([
-    sb.from("bookings").select(BOOKING_SELECT).eq("id", id).maybeSingle(),
+    sb.from("bookings").select(STAFF_BOOKING_SELECT).eq("id", id).maybeSingle(),
     sb.from("payments").select("id, amount, method, provider, status, paid_at, created_at").eq("booking_id", id).order("created_at"),
   ]);
   const booking = (bk.data as Booking | null) ?? null;
@@ -69,7 +69,8 @@ function Detail() {
   const balance = Number(b.total) - Number(b.amount_paid);
   const active = ["confirmed", "checked_out"].includes(b.status);
   // Also after check-out time, so a completed stay can still be corrected to a no-show
-  const canMarkNoShow = active && b.check_in <= todayManila();
+  const canMarkNoShow = active && b.check_in <= todayManila() && !b.arrived_at;
+  const canArrive = b.status === "confirmed" && b.check_in <= todayManila() && b.check_out >= todayManila();
 
   return (
     <>
@@ -93,6 +94,11 @@ function Detail() {
         <div className="card p-5">
           <dl className="grid grid-cols-2 gap-y-2 text-[15px]">
             <dt className="text-muted">Room type</dt><dd className="text-right">{br?.room_types?.name}</dd>
+            <dt className="text-muted">Room</dt>
+            <dd className="text-right">
+              {b.room ? b.room.number : b.status === "confirmed" ? "None free yet" : "—"}
+              {b.arrived_at && <span className="block text-xs text-muted">Arrived {niceTime(b.arrived_at)}, {niceDate(b.arrived_at.slice(0, 10))}</span>}
+            </dd>
             <dt className="text-muted">Rate</dt><dd className="text-right">{br?.rate_plans?.name}</dd>
             <dt className="text-muted">Dates</dt><dd className="text-right">{niceDate(b.check_in)} – {niceDate(b.check_out, true)}</dd>
             <dt className="text-muted">Guests</dt><dd className="text-right">{guests(b.adults, b.children)}</dd>
@@ -124,6 +130,11 @@ function Detail() {
       </div>
 
       <div className="mt-6 grid gap-4">
+        {b.status === "confirmed" && br && (
+          <MoveRoom booking={b} roomTypeId={br.room_type_id} busy={busy}
+            onMove={(roomId) => run("set_booking_room", { p_booking_id: b.id, p_room_id: roomId }, (d) => `Moved to room ${d.room_number}.`)} />
+        )}
+
         {b.status === "confirmed" && <ChangeDates booking={b} onDone={(text) => { setMsg({ tone: "good", text }); load(); }} />}
 
         {active && balance > 0 && (
@@ -146,6 +157,17 @@ function Detail() {
         )}
 
         <div className="flex flex-wrap gap-3">
+          {canArrive && (b.arrived_at ? (
+            <button className="btn-quiet" disabled={busy}
+              onClick={() => run("confirm_arrival", { p_booking_id: b.id, p_arrived: false }, () => "Arrival undone. The room shows as not arrived yet.")}>
+              Undo arrival
+            </button>
+          ) : (
+            <button className="btn-primary" disabled={busy}
+              onClick={() => run("confirm_arrival", { p_booking_id: b.id }, (d) => d.room_number ? `Arrival confirmed. Room ${d.room_number} is now occupied.` : "Arrival confirmed.")}>
+              Guest arrived
+            </button>
+          ))}
           {canMarkNoShow && (
             ask === "noshow" ? (
               <ConfirmBar
@@ -175,6 +197,43 @@ function Detail() {
         </div>
       </div>
     </>
+  );
+}
+
+// Rooms of the same type that no other confirmed booking has on any of this stay's nights
+function MoveRoom({ booking, roomTypeId, busy, onMove }: {
+  booking: Booking; roomTypeId: string; busy: boolean; onMove: (roomId: string) => void;
+}) {
+  const [free, setFree] = useState<{ id: string; number: string }[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const sb = supabase();
+    Promise.all([
+      sb.from("rooms").select("id, number").eq("room_type_id", roomTypeId).neq("status", "out_of_order").order("number"),
+      sb.from("bookings").select("room_id").eq("status", "confirmed").neq("id", booking.id).not("room_id", "is", null)
+        .lt("check_in", booking.check_out).gt("check_out", booking.check_in),
+    ]).then(([rooms, taken]) => {
+      if (!active) return;
+      const used = new Set((taken.data ?? []).map((t) => t.room_id));
+      setFree((rooms.data ?? []).filter((r) => r.id !== booking.room_id && !used.has(r.id)));
+    });
+    return () => { active = false; };
+  }, [booking.id, booking.room_id, booking.check_in, booking.check_out, roomTypeId]);
+
+  if (!free) return null;
+  return (
+    <div className="card flex flex-wrap items-end gap-3 p-5">
+      <div className="w-44">
+        <label className="label" htmlFor="move-room">{booking.room ? "Move to room" : "Assign a room"}</label>
+        <select id="move-room" className="field" value="" disabled={busy || free.length === 0}
+          onChange={(e) => e.target.value && onMove(e.target.value)}>
+          <option value="">{free.length ? "Choose a room" : "No other room free"}</option>
+          {free.map((r) => <option key={r.id} value={r.id}>Room {r.number}</option>)}
+        </select>
+      </div>
+      <p className="pb-2 text-sm text-muted">Free rooms of the same type for every night of this stay.</p>
+    </div>
   );
 }
 

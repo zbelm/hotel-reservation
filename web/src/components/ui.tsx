@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { BookingStatus, RoomStatus } from "@/lib/types";
-import { bookingStatusLabel, roomStatusLabel } from "@/lib/format";
+import type { BookingStatus, Occupancy, RoomStatus } from "@/lib/types";
+import { bookingStatusLabel, occupancyLabel, roomStatusLabel } from "@/lib/format";
 
 export function Spinner({ label = "Loading" }: { label?: string }) {
   return (
@@ -49,6 +49,22 @@ export function RoomBadge({ status }: { status: RoomStatus }) {
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${roomTone[status]}`}>
       {roomStatusLabel[status]}
+    </span>
+  );
+}
+
+const occupancyTone: Record<Occupancy, string> = {
+  occupied: "bg-sea-tint text-sea border-sea/30",
+  leaving_soon: "bg-sun-tint text-sun border-sun/30",
+  not_arrived: "bg-paper text-ink border-line",
+  empty: "bg-good-tint text-good border-good/30",
+  out_of_order: "bg-bad-tint text-bad border-bad/30",
+};
+
+export function OccupancyBadge({ occupancy }: { occupancy: Occupancy }) {
+  return (
+    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${occupancyTone[occupancy]}`}>
+      {occupancyLabel[occupancy]}
     </span>
   );
 }

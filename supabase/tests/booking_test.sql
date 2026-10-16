@@ -772,4 +772,158 @@ do $$ begin perform public.account_has_password(); raise exception 'x';
   exception when others then assert sqlerrm like '%permission denied%', sqlerrm; end $$;
 reset role;
 
+-- 26. Rooms: confirmed bookings get a room of their type, lowest number first, never twice
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare plan uuid; b json; begin
+  select id into plan from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a3' and name = 'Flexible';
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a3', plan, current_date + 200, current_date + 203, 2, 0, 'Room A', 'a@example.com', null, null, 'front_desk');
+  insert into t values ('room_a', b->>'id');
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a3', plan, current_date + 201, current_date + 202, 2, 0, 'Room B', 'b@example.com', null, null, 'front_desk');
+  insert into t values ('room_b', b->>'id');
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a3', plan, current_date + 202, current_date + 204, 2, 0, 'Room C', 'c@example.com', null, null, 'front_desk');
+  insert into t values ('room_c', b->>'id');
+end $$;
+reset role;
+create temp view room_of as
+  select t.k, r.number from t join public.bookings b on b.id = t.v::uuid left join public.rooms r on r.id = b.room_id;
+do $$ begin
+  assert (select number from room_of where k = 'room_a') = '401', 'first suite booking gets 401';
+  assert (select number from room_of where k = 'room_b') = '402', 'overlapping booking gets 402';
+  assert (select number from room_of where k = 'room_c') = '402', 'C fits 402 once B leaves';
+  -- A held booking has no room until it is confirmed
+  insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, hold_expires_at, total)
+  values ('HRHELDROOM', '00000000-0000-0000-0000-000000000001', 'Held', 'held@example.com', current_date + 220, current_date + 221, 'held', now() + interval '10 minutes', 100);
+  insert into public.booking_rooms (booking_id, room_type_id, rate_plan_id, nightly_prices, subtotal)
+  select id, '00000000-0000-0000-0000-0000000000a1', (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a1' and name = 'Flexible'), '[]', 100
+    from public.bookings where code = 'HRHELDROOM';
+  assert (select room_id from public.bookings where code = 'HRHELDROOM') is null, 'held booking has no room';
+  update public.bookings set status = 'confirmed', hold_expires_at = null where code = 'HRHELDROOM';
+  assert (select r.number from public.bookings b join public.rooms r on r.id = b.room_id where b.code = 'HRHELDROOM') = '201', 'confirmed booking gets 201';
+  -- No room is ever given to two confirmed bookings on the same night
+  assert not exists (
+    select 1 from public.bookings x join public.bookings y
+      on x.room_id = y.room_id and x.id < y.id and x.check_in < y.check_out and y.check_in < x.check_out
+     where x.status = 'confirmed' and y.status = 'confirmed'), 'a room is double assigned';
+  raise notice 'PASS 26 rooms assigned on confirm, lowest number first, no double assignment';
+end $$;
+
+-- 27. Cancelling frees the room; an out-of-order room hands its upcoming guests to another room
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare plan uuid; b json; begin
+  perform public.cancel_booking((select v::uuid from t where k = 'room_a'));
+  assert (select room_id from public.bookings where id = (select v::uuid from t where k = 'room_a')) is null, 'cancel should clear the room';
+  select id into plan from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a3' and name = 'Flexible';
+  b := public.create_booking('00000000-0000-0000-0000-0000000000a3', plan, current_date + 200, current_date + 201, 2, 0, 'Room D', 'd@example.com', null, null, 'front_desk');
+  insert into t values ('room_d', b->>'id');
+end $$;
+reset role;
+do $$ begin
+  assert (select number from room_of where k = 'room_d') = '401', 'freed room is reused';
+end $$;
+set role authenticated;
+do $$ begin
+  perform public.set_room_status((select id from public.rooms where number = '402'), 'out_of_order');
+end $$;
+reset role;
+do $$ begin
+  assert (select number from room_of where k = 'room_b') = '401', 'B moves off the out-of-order room';
+  assert (select number from room_of where k = 'room_c') = '401', 'C moves off the out-of-order room';
+end $$;
+set role authenticated;
+do $$ begin
+  perform public.set_room_status((select id from public.rooms where number = '402'), 'vacant_clean');
+  raise notice 'PASS 27 cancel frees the room; out of order moves upcoming guests';
+end $$;
+
+-- 28. set_booking_room: admins only, same room type, in service and free on those nights
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ begin
+  begin perform public.set_booking_room((select v::uuid from t where k = 'room_b'), (select id from public.rooms where number = '402')); raise exception 'x';
+  exception when others then assert sqlerrm = 'Only admins can assign rooms', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare r json; plan uuid; e uuid; begin
+  -- 401 has D (+200), B (+201) and C (+202, +203); 402 is empty
+  r := public.set_booking_room((select v::uuid from t where k = 'room_b'), (select id from public.rooms where number = '402'));
+  assert r->>'room_number' = '402', format('move B to 402: %s', r);
+  r := public.set_booking_room((select v::uuid from t where k = 'room_c'), (select id from public.rooms where number = '402'));
+  assert r->>'room_number' = '402', 'C can follow B into 402';
+  begin perform public.set_booking_room((select v::uuid from t where k = 'room_d'), (select id from public.rooms where number = '201')); raise exception 'x';
+  exception when others then assert sqlerrm like '%different room type', sqlerrm; end;
+  select id into plan from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a3' and name = 'Flexible';
+  e := (public.create_booking('00000000-0000-0000-0000-0000000000a3', plan, current_date + 201, current_date + 203, 2, 0, 'Room E', 'e@example.com', null, null, 'front_desk') ->> 'id')::uuid;
+  insert into t values ('room_e', e::text);
+  assert (select r2.number from public.bookings x join public.rooms r2 on r2.id = x.room_id where x.id = e) = '401', 'E gets 401';
+  begin perform public.set_booking_room(e, (select id from public.rooms where number = '402')); raise exception 'x';
+  exception when others then assert sqlerrm like '%taken%', sqlerrm; end;
+  perform public.set_room_status((select id from public.rooms where number = '402'), 'out_of_order');
+  begin perform public.set_booking_room((select v::uuid from t where k = 'room_d'), (select id from public.rooms where number = '402')); raise exception 'x';
+  exception when others then assert sqlerrm like '%out of order', sqlerrm; end;
+  perform public.set_room_status((select id from public.rooms where number = '402'), 'vacant_clean');
+end $$;
+reset role;
+do $$ begin
+  -- B and C had nowhere to go while 402 was out of order; back in service, they get it again
+  assert (select number from room_of where k = 'room_b') = '402', 'B back in 402';
+  assert (select number from room_of where k = 'room_c') = '402', 'C back in 402';
+  raise notice 'PASS 28 set_booking_room rules';
+end $$;
+
+-- 29. Arrival and the room board: occupied only once staff confirm the guest is here
+-- An unpaid stay that ends today, so the cleanup job leaves it confirmed
+insert into public.bookings (code, property_id, guest_name, guest_email, check_in, check_out, status, total, amount_paid)
+values ('HRLEAVING1', '00000000-0000-0000-0000-000000000001', 'Leaving Today', 'leave@example.com',
+        (now() at time zone 'Asia/Manila')::date - 1, (now() at time zone 'Asia/Manila')::date, 'confirmed', 100, 0);
+insert into public.booking_rooms (booking_id, room_type_id, rate_plan_id, nightly_prices, subtotal)
+select id, '00000000-0000-0000-0000-0000000000a2', (select id from public.rate_plans where room_type_id = '00000000-0000-0000-0000-0000000000a2' and name = 'Flexible'), '[]', 100
+  from public.bookings where code = 'HRLEAVING1';
+insert into t select 'leaving', id::text from public.bookings where code = 'HRLEAVING1';
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', false);
+do $$ begin
+  begin perform public.confirm_arrival((select v::uuid from t where k = 'walkin')); raise exception 'x';
+  exception when others then assert sqlerrm = 'Only admins can confirm arrivals', sqlerrm; end;
+  begin perform * from public.staff_room_board(); raise exception 'x';
+  exception when others then assert sqlerrm = 'Only admins can see the room board', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"33333333-3333-3333-3333-333333333333"}', false);
+do $$ declare walkin uuid := (select v::uuid from t where k = 'walkin'); leaving uuid := (select v::uuid from t where k = 'leaving'); r json; begin
+  assert (select occupancy from public.staff_room_board() where booking_id = walkin) = 'not_arrived', 'walk-in not confirmed as arrived yet';
+  assert not exists (select 1 from public.staff_room_board() where booking_id = leaving), 'a guest who never arrived isn''t shown leaving';
+  assert exists (select 1 from public.staff_room_board() where occupancy = 'empty'), 'some rooms are empty tonight';
+
+  r := public.confirm_arrival(walkin);
+  assert r->>'arrived_at' is not null and r->>'room_number' is not null, format('arrival %s', r);
+  assert (select occupancy from public.staff_room_board() where booking_id = walkin) = 'occupied', 'arrived walk-in occupies the room';
+  perform public.confirm_arrival(walkin, false);
+  assert (select occupancy from public.staff_room_board() where booking_id = walkin) = 'not_arrived', 'undo arrival';
+  perform public.confirm_arrival(walkin);
+  begin perform public.confirm_arrival((select v::uuid from t where k = 'room_d')); raise exception 'x';
+  exception when others then assert sqlerrm like 'The guest isn''t due until%', sqlerrm; end;
+
+  -- Check-out is today: from 2 hours before check-out time the room shows Leaving soon
+  perform public.confirm_arrival(leaving);
+  update public.properties set check_out_time = '00:00';
+  assert (select occupancy from public.staff_room_board() where booking_id = leaving) = 'leaving_soon', 'leaving soon';
+  update public.properties set check_out_time = '12:00';
+  -- An arrived guest stays put when their room goes out of order; the board says so
+  perform public.set_room_status((select room_id from public.bookings where id = leaving), 'out_of_order');
+  assert (select occupancy from public.staff_room_board() where booking_id = leaving) = 'out_of_order', 'out of order';
+  perform public.set_room_status((select room_id from public.bookings where id = leaving), 'vacant_clean');
+
+  begin perform public.mark_no_show(leaving); raise exception 'x';
+  exception when others then assert sqlerrm like 'The guest has arrived%', sqlerrm; end;
+end $$;
+reset role;
+set role service_role;
+do $$ begin
+  perform public.expire_holds_and_no_shows();
+  assert (select status from public.bookings where code = 'HRLEAVING1') = 'confirmed', 'arrived unpaid stay waits for the desk, never a no-show';
+  assert (select status from public.bookings where id = (select v::uuid from t where k = 'walkin')) = 'confirmed';
+  raise notice 'PASS 29 confirm arrival, room board occupancy, arrived guests are never no-shows';
+end $$;
+reset role;
+
 \echo 'All booking tests passed.'

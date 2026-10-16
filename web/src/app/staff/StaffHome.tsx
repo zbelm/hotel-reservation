@@ -3,22 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookingBadge, Notice, RoomBadge, Spinner } from "@/components/ui";
+import { BookingBadge, Notice, OccupancyBadge, RoomBadge, Spinner } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { addDays, money, niceDate, nightsBetween, plural, roomStatusLabel, todayManila } from "@/lib/format";
+import { addDays, money, niceDate, nightsBetween, occupancyLabel, plural, todayManila } from "@/lib/format";
 import { useToday } from "@/lib/useToday";
 import { arrivalLabel } from "@/lib/hotel";
-import { BOOKING_SELECT, type Booking, type Room, type RoomStatus } from "@/lib/types";
+import { BOOKING_SELECT, STAFF_BOOKING_SELECT, type BoardRoom, type Booking, type Occupancy, type RoomStatus } from "@/lib/types";
 import { currentTab, type TabKey } from "./StaffShell";
 import { CalendarTab, DashboardTab, ReviewsTab } from "./StaffInsights";
 import { TeamTab } from "./StaffTeam";
 
 const HEADINGS: Record<TabKey, [string, string]> = {
-  today: ["Today", "Who arrives today, who leaves, and who is staying tonight."],
+  today: ["Today", "Who arrives today, who leaves, and who is staying tonight. Tap Guest arrived when they get here."],
   calendar: ["Calendar", "Two weeks of rooms booked per room type. Open a booking to see it."],
   find: ["Find a booking", "Search by booking code, guest name or email."],
   walkin: ["New booking", "For walk-ins and phone bookings. These are confirmed straight away; take payment at the desk."],
-  rooms: ["Rooms", "Mark a room out of order to stop it being booked, and keep its cleaning status if you use it."],
+  rooms: ["Rooms", "Who is in each room right now. Rooms count as occupied once you confirm the guest arrived."],
   dashboard: ["Dashboard", "Occupancy, revenue and bookings for a date range."],
   reviews: ["Reviews", "What guests wrote after their stay."],
   team: ["Team", "Who can use the staff portal. Everyone here is an admin."],
@@ -53,34 +53,47 @@ export function StaffHome() {
 function Today() {
   const [rows, setRows] = useState<Booking[] | null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
   const today = todayManila();
 
-  useEffect(() => {
+  const load = useCallback(() => {
     // Every confirmed booking that touches today: arriving, leaving or staying
-    supabase().from("bookings").select(BOOKING_SELECT).eq("status", "confirmed")
+    supabase().from("bookings").select(STAFF_BOOKING_SELECT).eq("status", "confirmed")
       .lte("check_in", today).gte("check_out", today).order("guest_name")
       .then(({ data, error }) => (error ? setError(error.message) : setRows((data as Booking[]) ?? [])));
   }, [today]);
 
-  if (error) return <Notice tone="error">{error}</Notice>;
-  if (!rows) return <Spinner />;
+  useEffect(load, [load]);
+
+  async function arrived(b: Booking) {
+    setError("");
+    setBusy(b.id);
+    const { error } = await supabase().rpc("confirm_arrival", { p_booking_id: b.id });
+    setBusy(null);
+    if (error) setError(error.message);
+    load();
+  }
+
+  if (!rows) return error ? <Notice tone="error">{error}</Notice> : <Spinner />;
 
   const arriving = rows.filter((b) => b.check_in === today);
   const leaving = rows.filter((b) => b.check_out === today);
   const staying = rows.filter((b) => b.check_in < today && b.check_out > today);
   const toCollect = arriving.reduce((sum, b) => sum + owes(b), 0);
+  const rooms = { onArrived: arrived, busy };
 
   return (
     <div className="grid gap-10">
+      {error && <Notice tone="error">{error}</Notice>}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
         <Stat label="Arriving" value={String(arriving.length)} note={`due ${niceDate(today)}`} href="#arrivals" />
         <Stat label="Leaving" value={String(leaving.length)} note="check-out today" href="#departures" />
-        <Stat label="Staying on" value={String(staying.length)} note="arrived earlier" href="#staying" />
+        <Stat label="Staying tonight" value={String(staying.length)} note="stay started earlier" href="#staying" />
         <Stat label="To collect" value={money(toCollect)} note="from today's arrivals" href="#arrivals" />
       </div>
-      <BookingList id="arrivals" title={`Arriving ${niceDate(today)}`} rows={arriving} empty="Nobody is due to arrive today." />
-      <BookingList id="departures" title="Leaving today" rows={leaving} empty="Nobody is due to leave today." />
-      <BookingList id="staying" title="Staying on" rows={staying} empty="No other guests are mid-stay." />
+      <BookingList id="arrivals" title={`Arriving ${niceDate(today)}`} rows={arriving} empty="Nobody is due to arrive today." rooms={rooms} />
+      <BookingList id="departures" title="Leaving today" rows={leaving} empty="Nobody is due to leave today." rooms={{ busy }} />
+      <BookingList id="staying" title="Staying tonight" rows={staying} empty="No other guests are mid-stay." rooms={rooms} />
     </div>
   );
 }
@@ -95,7 +108,25 @@ function Stat({ label, value, note, href }: { label: string; value: string; note
   );
 }
 
-function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode; rows: Booking[]; empty: string }) {
+// Today's lists also show the assigned room, whether the guest is in it, and a way to say they arrived
+type RoomColumn = { onArrived?: (b: Booking) => void; busy: string | null };
+
+function RoomCell({ b, rooms }: { b: Booking; rooms: RoomColumn }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-semibold">{b.room ? `Room ${b.room.number}` : "No room yet"}</span>
+      <OccupancyBadge occupancy={b.arrived_at ? "occupied" : "not_arrived"} />
+      {!b.arrived_at && rooms.onArrived && (
+        <button className="btn-quiet py-1! text-xs" disabled={rooms.busy === b.id}
+          onClick={(e) => { e.preventDefault(); rooms.onArrived?.(b); }}>
+          {rooms.busy === b.id ? "Saving…" : "Guest arrived"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function BookingList({ id, title, rows, empty, rooms }: { id?: string; title: ReactNode; rows: Booking[]; empty: string; rooms?: RoomColumn }) {
   return (
     <section id={id} className="scroll-mt-24">
       <h2 className="mb-3 flex items-baseline gap-2 text-xl font-semibold">
@@ -111,8 +142,8 @@ function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode
               const br = b.booking_rooms?.[0];
               const balance = owes(b);
               return (
-                <li key={b.id}>
-                  <Link href={`/staff/booking?id=${b.id}`} className="card block p-4 transition-colors hover:border-sea">
+                <li key={b.id} className="card p-4">
+                  <Link href={`/staff/booking?id=${b.id}`} className="block transition-colors hover:text-sea">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{b.guest_name}</p>
@@ -126,6 +157,7 @@ function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode
                       {balance > 0 && <span className="font-semibold text-sun">{money(balance)} to pay{b.payment_option === "pay_at_hotel" ? " · pays at hotel" : ""}</span>}
                     </div>
                   </Link>
+                  {rooms && <div className="mt-3 border-t border-line pt-3 text-sm"><RoomCell b={b} rooms={rooms} /></div>}
                 </li>
               );
             })}
@@ -136,7 +168,7 @@ function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line text-xs font-medium text-muted">
                 <tr>
-                  <th className="px-4 py-3">Guest</th><th className="px-4 py-3">Room type</th><th className="px-4 py-3">Dates</th>
+                  <th className="px-4 py-3">Guest</th><th className="px-4 py-3">{rooms ? "Room" : "Room type"}</th><th className="px-4 py-3">Dates</th>
                   <th className="px-4 py-3">Arriving</th><th className="px-4 py-3">Balance</th><th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3"><span className="sr-only">Action</span></th>
                 </tr>
@@ -151,7 +183,9 @@ function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode
                         <Link href={`/staff/booking?id=${b.id}`} className="font-medium text-sea hover:underline">{b.guest_name}</Link>
                         <p className="font-mono text-xs text-muted">{b.code}</p>
                       </td>
-                      <td className="px-4 py-3 text-muted">{br?.room_types?.name}</td>
+                      <td className="px-4 py-3 text-muted">
+                        {rooms ? <><RoomCell b={b} rooms={rooms} /><p className="mt-1 text-xs">{br?.room_types?.name}</p></> : br?.room_types?.name}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3">{niceDate(b.check_in)} – {niceDate(b.check_out)}<p className="text-xs text-muted">{plural(nightsBetween(b.check_in, b.check_out), "night")}</p></td>
                       <td className="whitespace-nowrap px-4 py-3 text-muted">{arrivalLabel(b.arrival_time) ?? "Not given"}</td>
                       <td className={`whitespace-nowrap px-4 py-3 tabular-nums ${balance > 0 ? "font-semibold text-sun" : "text-muted"}`}>{balance > 0 ? money(balance) : "Paid"}{balance > 0 && b.payment_option === "pay_at_hotel" && <p className="text-xs font-normal text-muted">Pays at hotel</p>}</td>
@@ -172,91 +206,120 @@ function BookingList({ id, title, rows, empty }: { id?: string; title: ReactNode
 }
 
 // --------------------------------------------------------------------------
-// Rooms: out of order and cleaning status
+// Rooms: who is in each room now, with cleaning and out of order as smaller controls
 // --------------------------------------------------------------------------
 const NEXT_STATUS: Partial<Record<RoomStatus, { to: RoomStatus; label: string }>> = {
   dirty: { to: "cleaning", label: "Start cleaning" },
   cleaning: { to: "vacant_clean", label: "Mark clean" },
-  out_of_order: { to: "dirty", label: "Back in service" },
 };
-const SETTABLE: RoomStatus[] = ["vacant_clean", "dirty", "cleaning", "out_of_order"];
-const ROOM_EDGE: Record<RoomStatus, string> = {
-  vacant_clean: "border-l-good",
-  dirty: "border-l-sun",
-  cleaning: "border-l-sea",
+const ROOM_EDGE: Record<Occupancy, string> = {
+  occupied: "border-l-sea",
+  leaving_soon: "border-l-sun",
+  not_arrived: "border-l-line",
+  empty: "border-l-good",
   out_of_order: "border-l-bad",
 };
+const FILTERS: (Occupancy | "all")[] = ["all", "occupied", "leaving_soon", "not_arrived", "empty", "out_of_order"];
 
 function RoomBoard() {
-  const [rooms, setRooms] = useState<Room[] | null>(null);
+  const [rooms, setRooms] = useState<BoardRoom[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [filter, setFilter] = useState<RoomStatus | "all">("all");
+  const [filter, setFilter] = useState<Occupancy | "all">("all");
 
   const load = useCallback(() => {
-    supabase().from("rooms").select("id, number, floor, status, room_type_id, room_types(name)").order("number")
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        else setRooms((data as unknown as Room[]) ?? []);
-      });
+    supabase().rpc("staff_room_board").then(({ data, error }) => {
+      if (error) setError(error.message);
+      else setRooms((data as BoardRoom[]) ?? []);
+    });
   }, []);
 
-  useEffect(load, [load]);
+  // Occupancy depends on the clock too (Leaving soon), so refresh every minute
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => clearInterval(timer);
+  }, [load]);
 
-  async function setStatus(room: Room, status: RoomStatus) {
+  async function act(room: BoardRoom, fn: string, args: Record<string, unknown>) {
     setError("");
-    setBusy(room.id);
-    const { error } = await supabase().rpc("set_room_status", { p_room_id: room.id, p_status: status });
+    setBusy(room.room_id);
+    const { error } = await supabase().rpc(fn, args);
     setBusy(null);
     if (error) setError(error.message);
     load();
   }
+  const setStatus = (r: BoardRoom, status: RoomStatus) => act(r, "set_room_status", { p_room_id: r.room_id, p_status: status });
 
   if (!rooms) return error ? <Notice tone="error">{error}</Notice> : <Spinner />;
 
-  const counts = rooms.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
-  const shown = filter === "all" ? rooms : rooms.filter((r) => r.status === filter);
-  const floors = [...new Set(shown.map((r) => r.floor ?? 0))].sort();
-  const filters: (RoomStatus | "all")[] = ["all", "vacant_clean", "dirty", "cleaning", "out_of_order"];
+  const counts = rooms.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.occupancy]: (acc[r.occupancy] ?? 0) + 1 }), {});
+  const shown = filter === "all" ? rooms : rooms.filter((r) => r.occupancy === filter);
+  const floors = [...new Set(shown.map((r) => r.floor ?? 0))].sort((a, b) => a - b);
 
   return (
     <div className="grid gap-6">
       {error && <Notice tone="error">{error}</Notice>}
       <div className="flex flex-wrap gap-2" role="group" aria-label="Show rooms">
-        {filters.map((f) => (
+        {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
             className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${filter === f ? "border-bay bg-bay text-on-bay" : "border-line bg-paper hover:border-sea"}`}>
-            {f === "all" ? "All rooms" : roomStatusLabel[f]}
+            {f === "all" ? "All rooms" : f === "not_arrived" ? "Not arrived" : occupancyLabel[f]}
             <span className={`tabular-nums ${filter === f ? "text-on-bay-muted" : "text-muted"}`}>{f === "all" ? rooms.length : counts[f] ?? 0}</span>
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm text-muted">No rooms with this status.</p>}
+      {shown.length === 0 && <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm text-muted">No rooms like this right now.</p>}
       {floors.map((f) => (
         <section key={f}>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-muted">Floor {f}</h2>
           <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
             {shown.filter((r) => (r.floor ?? 0) === f).map((r) => {
-              const next = NEXT_STATUS[r.status];
+              const next = NEXT_STATUS[r.room_status];
+              const saving = busy === r.room_id;
+              const outOfOrder = r.room_status === "out_of_order";
               return (
-                <div key={r.id} className={`card border-l-4 p-4 ${ROOM_EDGE[r.status]}`}>
+                <div key={r.room_id} className={`card flex flex-col border-l-4 p-4 ${ROOM_EDGE[r.occupancy]}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-display text-2xl font-semibold leading-none">{r.number}</p>
-                      <p className="mt-1 text-xs text-muted">{r.room_types?.name}</p>
+                      <p className="mt-1 text-xs text-muted">{r.room_type}</p>
                     </div>
-                    <RoomBadge status={r.status} />
+                    <OccupancyBadge occupancy={r.occupancy} />
                   </div>
-                  <div className="mt-4 grid gap-2">
-                    {next && (
-                      <button className="btn-primary py-2! text-sm" disabled={busy === r.id} onClick={() => setStatus(r, next.to)}>
-                        {busy === r.id ? "Saving…" : next.label}
+
+                  {r.booking_id && r.guest_name && (
+                    <div className="mt-3 text-sm">
+                      <Link href={`/staff/booking?id=${r.booking_id}`} className="font-medium text-sea hover:underline">{r.guest_name}</Link>
+                      {r.check_out && <p className="text-xs text-muted">Leaves {niceDate(r.check_out)}</p>}
+                      {r.occupancy === "not_arrived" && (
+                        <button className="btn-primary mt-2 w-full py-1.5! text-sm" disabled={saving}
+                          onClick={() => act(r, "confirm_arrival", { p_booking_id: r.booking_id })}>
+                          {saving ? "Saving…" : "Guest arrived"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Housekeeping: a small tag and the next step, plus out of order */}
+                  <div className="mt-auto pt-4">
+                    <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3 text-xs">
+                      {(r.room_status === "dirty" || r.room_status === "cleaning") && <RoomBadge status={r.room_status} />}
+                      {next && (
+                        <button className="font-medium text-sea hover:underline disabled:opacity-60" disabled={saving} onClick={() => setStatus(r, next.to)}>
+                          {next.label}
+                        </button>
+                      )}
+                      {r.room_status === "vacant_clean" && (
+                        <button className="font-medium text-muted hover:text-sea hover:underline disabled:opacity-60" disabled={saving} onClick={() => setStatus(r, "dirty")}>
+                          Mark for cleaning
+                        </button>
+                      )}
+                      <button className="ml-auto font-medium text-muted hover:text-bad hover:underline disabled:opacity-60" disabled={saving}
+                        onClick={() => setStatus(r, outOfOrder ? "dirty" : "out_of_order")}>
+                        {outOfOrder ? "Back in service" : "Out of order"}
                       </button>
-                    )}
-                    <select aria-label={`Status of room ${r.number}`} className="field py-1.5! text-sm" value={r.status} disabled={busy === r.id}
-                      onChange={(e) => setStatus(r, e.target.value as RoomStatus)}>
-                      {SETTABLE.map((s) => <option key={s} value={s}>{roomStatusLabel[s]}</option>)}
-                    </select>
+                    </div>
                   </div>
                 </div>
               );
