@@ -245,6 +245,8 @@ const en = {
     promptTitle: "Sign in faster next time",
     prompt: "Set a password so you don't have to wait for a sign-in email.",
     promptLink: "Set a password",
+    offerIntro: "You're signed in. Choose a password now, and next time you just type it: no email to wait for.",
+    skip: "Skip for now",
   },
 
   stays: {
@@ -631,6 +633,8 @@ const fil: Messages = {
     promptTitle: "Mas mabilis na sign-in sa susunod",
     prompt: "Maglagay ng password para hindi mo na kailangang maghintay ng sign-in email.",
     promptLink: "Maglagay ng password",
+    offerIntro: "Naka-sign in ka na. Pumili ng password ngayon, at sa susunod ita-type mo na lang ito: walang email na hihintayin.",
+    skip: "Mamaya na lang",
   },
 
   stays: {

@@ -9,9 +9,12 @@ import '../theme.dart';
 /// Lets a signed-in guest or staff member choose a password, so later sign-ins need no email.
 /// Also opened by AuthGate after a "Forgot password?" email link ([reset] = true).
 class PasswordScreen extends StatefulWidget {
-  const PasswordScreen({super.key, this.reset = false});
+  const PasswordScreen({super.key, this.reset = false, this.offer = false});
 
   final bool reset;
+
+  /// Opened straight after an email sign-in: offers a Skip button
+  final bool offer;
 
   @override
   State<PasswordScreen> createState() => _PasswordScreenState();
@@ -42,7 +45,8 @@ class _PasswordScreenState extends State<PasswordScreen> {
       _error = null;
     });
     try {
-      await db.auth.updateUser(UserAttributes(password: _password.text));
+      // has_password tells the app not to offer this again after an email sign-in
+      await db.auth.updateUser(UserAttributes(password: _password.text, data: {'has_password': true}));
       if (mounted) setState(() => _saved = true);
     } catch (e) {
       if (mounted) setState(() => _error = errorText(e));
@@ -62,6 +66,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
           Text(
             widget.reset
                 ? tr('Choose a new password for your account.', 'Pumili ng bagong password para sa account mo.')
+                : widget.offer
+                ? tr("You're signed in. Choose a password now, and next time you just type it: no email to wait for.",
+                    'Naka-sign in ka na. Pumili ng password ngayon, at sa susunod ita-type mo na lang ito: walang email na hihintayin.')
                 : tr('Set a password so you can sign in with it next time, without waiting for an email.',
                 'Maglagay ng password para makapag-sign in ka gamit ito sa susunod, nang hindi na naghihintay ng email.'),
             style: TextStyle(color: muted, fontSize: 16),
@@ -100,6 +107,8 @@ class _PasswordScreenState extends State<PasswordScreen> {
               onPressed: _busy ? null : _save,
               child: Text(_busy ? tr('Saving…', 'Sine-save…') : tr('Save password', 'I-save ang password')),
             ),
+            if (widget.offer)
+              TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(tr('Skip for now', 'Mamaya na lang'))),
           ],
           if (_error != null) ...[
             const SizedBox(height: 16),

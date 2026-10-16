@@ -107,7 +107,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() => _run((email) => db.auth.signInWithPassword(email: email, password: _password.text), needsPassword: true);
 
   Future<void> _signUp() => _run((email) async {
-        final res = await db.auth.signUp(email: email, password: _password.text, emailRedirectTo: authRedirect);
+        // They chose a password here, so no "set a password" offer after confirming
+        final res = await db.auth.signUp(
+            email: email, password: _password.text, emailRedirectTo: authRedirect, data: {'has_password': true});
         // Supabase hides existing accounts by returning a user with no identities
         if (res.user != null && (res.user!.identities?.isEmpty ?? false)) throw AuthException(_existsText);
         if (res.session == null && mounted) {

@@ -115,7 +115,8 @@ export function Login() {
       const { data, error } = await supabase().auth.signUp({
         email: address,
         password,
-        options: { emailRedirectTo: redirectTo() },
+        // They chose a password here, so no "set a password" offer after confirming
+        options: { emailRedirectTo: redirectTo(), data: { has_password: true } },
       });
       if (error) return explain(error.message);
       // Supabase hides existing accounts by returning a user with no identities
