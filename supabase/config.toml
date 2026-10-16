@@ -6,3 +6,7 @@ verify_jwt = true
 # PayMongo calls this one directly, so it checks PayMongo's signature instead
 [functions.paymongo-webhook]
 verify_jwt = false
+
+# Supabase Auth calls this as the Send Email hook and signs the request itself
+[functions.send-email]
+verify_jwt = false
