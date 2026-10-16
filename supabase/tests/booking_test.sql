@@ -756,4 +756,20 @@ do $$ declare bid uuid := (select id from public.bookings where code = 'HRINHOUS
 end $$;
 reset role;
 
+-- account_has_password: true only for the signed-in account's own saved password
+update auth.users set encrypted_password = 'x' where id = '22222222-2222-2222-2222-222222222222';
+update auth.users set encrypted_password = null where id = '55555555-5555-5555-5555-555555555555';
+set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', false);
+do $$ begin assert public.account_has_password(), 'saved password not seen'; end $$;
+select set_config('request.jwt.claims', '{"sub":"55555555-5555-5555-5555-555555555555"}', false);
+do $$ begin assert not public.account_has_password(), 'no password should be false';
+  raise notice 'PASS 25 account_has_password'; end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+set role anon;
+do $$ begin perform public.account_has_password(); raise exception 'x';
+  exception when others then assert sqlerrm like '%permission denied%', sqlerrm; end $$;
+reset role;
+
 \echo 'All booking tests passed.'

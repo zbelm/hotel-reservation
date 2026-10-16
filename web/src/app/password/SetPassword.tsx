@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Notice, Spinner } from "@/components/ui";
-import { MIN_PASSWORD } from "@/lib/auth";
+import { MIN_PASSWORD, markPasswordOffered, safeNext } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/i18n";
 import { useRequireAuth } from "@/lib/useRequireAuth";
@@ -22,7 +22,11 @@ export function SetPassword() {
   const router = useRouter();
   // Set when we arrive straight after an email sign-in: where to carry on afterwards
   const thenParam = useSearchParams().get("then");
-  const then = thenParam && thenParam.startsWith("/") && !thenParam.startsWith("//") ? thenParam : null;
+  const then = thenParam ? safeNext(thenParam) : null;
+
+  useEffect(() => {
+    if (session && then) markPasswordOffered(session);
+  }, [session, then]);
 
   if (!session) return <Spinner />;
 

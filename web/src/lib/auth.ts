@@ -1,4 +1,5 @@
 import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 // Shortest password Supabase Auth accepts for this project (Authentication → Policies)
 export const MIN_PASSWORD = 8;
@@ -17,17 +18,52 @@ export function readLinkError(): string | null {
   return hash.get("error_description") ?? query.get("error_description") ?? code;
 }
 
-/**
- * True when this session came from an email link or code and the account has never saved a
- * password, so the guest would need another email to sign in next time.
- */
-export function needsPassword(session: Session): boolean {
-  if (session.user.user_metadata?.has_password) return false;
+/** Keeps a redirect on this site: anything else (//host, /\\host, full URLs) becomes /bookings */
+export function safeNext(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/bookings";
   try {
-    const payload = JSON.parse(atob(session.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    const methods: string[] = (payload.amr ?? []).map((a: { method?: string }) => a.method ?? "");
-    return methods.some((m) => ["otp", "magiclink", "email/signup", "invite"].includes(m));
+    const url = new URL(value, "https://hotel.local");
+    return url.origin === "https://hotel.local" ? url.pathname + url.search + url.hash : "/bookings";
   } catch {
-    return false;
+    return "/bookings";
   }
+}
+
+const EMAIL_METHODS = ["otp", "magiclink", "email/signup", "invite"];
+// Only a sign-in this recent counts as "just signed in": later SIGNED_IN events (tab focus,
+// other tabs) carry the same older sign-in time and are ignored
+const FRESH_SECONDS = 120;
+
+const offeredKey = (session: Session) => `pw-offered:${session.user.id}`;
+
+/** Called when the password offer is on screen, so later sign-in events don't show it again */
+export function markPasswordOffered(session: Session) {
+  try {
+    localStorage.setItem(offeredKey(session), String(Math.floor(Date.now() / 1000)));
+  } catch {}
+}
+
+/**
+ * Where to send a guest who just signed in from an email link or code and has no password,
+ * so the next sign-in is email and password instead of another email. Null when there is
+ * nothing to offer, or it was already offered for this sign-in (in any tab).
+ */
+export async function passwordOffer(session: Session, then: string): Promise<string | null> {
+  if (session.user.user_metadata?.has_password || document.visibilityState !== "visible") return null;
+  const { data } = await supabase().auth.mfa.getAuthenticatorAssuranceLevel();
+  const now = Date.now() / 1000;
+  // Older tokens list methods as bare strings with no time; those never count as fresh
+  const signIn = data?.currentAuthenticationMethods
+    .filter((a) => typeof a === "object")
+    .find((a) => EMAIL_METHODS.includes(a.method) && now - a.timestamp < FRESH_SECONDS);
+  if (!signIn) return null;
+  try {
+    if (Number(localStorage.getItem(offeredKey(session))) >= signIn.timestamp) return null;
+  } catch {
+    return null; // can't remember the offer, so don't risk repeating it
+  }
+  // Accounts from before has_password existed may still have a password saved
+  const { data: hasPassword } = await supabase().rpc("account_has_password");
+  if (hasPassword === true) return null;
+  return `/password?then=${encodeURIComponent(safeNext(then))}`;
 }
