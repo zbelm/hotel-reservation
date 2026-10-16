@@ -56,14 +56,25 @@ function Today() {
   const [busy, setBusy] = useState<string | null>(null);
   const today = todayManila();
 
+  const [upcoming, setUpcoming] = useState<Booking[]>([]);
+
   const load = useCallback(() => {
     // Every confirmed booking that touches today: arriving, leaving or staying
     supabase().from("bookings").select(STAFF_BOOKING_SELECT).eq("status", "confirmed")
       .lte("check_in", today).gte("check_out", today).order("guest_name")
       .then(({ data, error }) => (error ? setError(error.message) : setRows((data as Booking[]) ?? [])));
+    // And who is due in the next two weeks, so new website and app bookings show up here too
+    supabase().from("bookings").select(STAFF_BOOKING_SELECT).eq("status", "confirmed")
+      .gt("check_in", today).lte("check_in", addDays(today, UPCOMING_DAYS)).order("check_in").order("guest_name")
+      .then(({ data, error }) => (error ? setError(error.message) : setUpcoming((data as Booking[]) ?? [])));
   }, [today]);
 
-  useEffect(load, [load]);
+  // New bookings come in from the website and the app at any time, so refresh every minute
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => clearInterval(timer);
+  }, [load]);
 
   async function arrived(b: Booking) {
     setError("");
@@ -94,9 +105,13 @@ function Today() {
       <BookingList id="arrivals" title={`Arriving ${niceDate(today)}`} rows={arriving} empty="Nobody is due to arrive today." rooms={rooms} />
       <BookingList id="departures" title="Leaving today" rows={leaving} empty="Nobody is due to leave today." rooms={{ busy }} />
       <BookingList id="staying" title="Staying tonight" rows={staying} empty="No other guests are mid-stay." rooms={rooms} />
+      <BookingList id="upcoming" title={`Arriving in the next ${UPCOMING_DAYS} days`} rows={upcoming}
+        empty={`Nobody is booked to arrive in the next ${UPCOMING_DAYS} days.`} />
     </div>
   );
 }
+
+const UPCOMING_DAYS = 14;
 
 function Stat({ label, value, note, href }: { label: string; value: string; note: string; href: string }) {
   return (
@@ -105,6 +120,19 @@ function Stat({ label, value, note, href }: { label: string; value: string; note
       <p className="mt-1 font-display text-3xl font-semibold tabular-nums sm:text-4xl">{value}</p>
       <p className="mt-1 text-xs text-muted">{note}</p>
     </Link>
+  );
+}
+
+// Where the booking came from, and a "New" mark for the last 24 hours
+const SOURCE_LABEL: Record<string, string> = { web: "Website", mobile: "App", front_desk: "Walk-in" };
+
+function SourceTag({ b }: { b: Booking }) {
+  const isNew = Date.now() - new Date(b.created_at).getTime() < 24 * 60 * 60 * 1000;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span className="rounded-full border border-line px-2 py-0.5 text-xs font-medium text-muted">{SOURCE_LABEL[b.source] ?? b.source}</span>
+      {isNew && <span className="rounded-full bg-sea-tint px-2 py-0.5 text-xs font-semibold text-sea">New</span>}
+    </span>
   );
 }
 
@@ -152,6 +180,7 @@ function BookingList({ id, title, rows, empty, rooms }: { id?: string; title: Re
                       <BookingBadge status={b.status} />
                     </div>
                     <p className="mt-2 text-sm">{niceDate(b.check_in)} – {niceDate(b.check_out)} · <span className="font-mono">{b.code}</span></p>
+                    <div className="mt-2"><SourceTag b={b} /></div>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
                       <span className="text-muted">Arriving {arrivalLabel(b.arrival_time)?.toLowerCase() ?? "time not given"}</span>
                       {balance > 0 && <span className="font-semibold text-sun">{money(balance)} to pay{b.payment_option === "pay_at_hotel" ? " · pays at hotel" : ""}</span>}
@@ -182,6 +211,7 @@ function BookingList({ id, title, rows, empty, rooms }: { id?: string; title: Re
                       <td className="px-4 py-3">
                         <Link href={`/staff/booking?id=${b.id}`} className="font-medium text-sea hover:underline">{b.guest_name}</Link>
                         <p className="font-mono text-xs text-muted">{b.code}</p>
+                        <div className="mt-1"><SourceTag b={b} /></div>
                       </td>
                       <td className="px-4 py-3 text-muted">
                         {rooms ? <><RoomCell b={b} rooms={rooms} /><p className="mt-1 text-xs">{br?.room_types?.name}</p></> : br?.room_types?.name}
@@ -341,13 +371,17 @@ function FindBooking() {
   const [error, setError] = useState("");
 
   // Before searching, show the latest bookings so the page is useful straight away
+  // (refreshed every minute, so new website and app bookings appear without a reload)
   useEffect(() => {
-    supabase().from("bookings").select(BOOKING_SELECT).neq("status", "expired")
+    const load = () => supabase().from("bookings").select(BOOKING_SELECT).neq("status", "expired")
       .order("created_at", { ascending: false }).limit(15)
       .then(({ data, error }) => {
         if (error) setError(error.message);
         else setRecent((data as Booking[]) ?? []);
       });
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   async function search(e: FormEvent) {
