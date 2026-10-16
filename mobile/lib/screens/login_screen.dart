@@ -53,7 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return tr('Too many emails were sent in the last hour. Please try again later, or sign in with your password.',
           'Masyadong maraming email ang naipadala ngayong oras. Subukan ulit mamaya, o mag-sign in gamit ang password.');
     }
-    if (has(r'token has expired|otp.*(expired|invalid)|invalid.*(token|otp)')) {
+    if (has('only request this after|security purposes')) {
+      return tr('Please wait a minute before asking for another email.',
+          'Maghintay muna ng isang minuto bago humingi ng panibagong email.');
+    }
+    if (has('token has expired|otp_expired')) {
       return tr('That code is wrong or has expired. Check the newest email, or send a new code.',
           'Mali o expired na ang code na iyon. Tingnan ang pinakabagong email, o magpadala ng bagong code.');
     }
@@ -135,7 +139,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _resendConfirmation() => _run((email) async {
         await db.auth.resend(type: OtpType.signup, email: email, emailRedirectTo: authRedirect);
-        if (mounted) _code.clear();
+        if (!mounted) return;
+        _code.clear();
+        setState(() => _sent = tr('We sent a new confirmation email to $email. Open the link on this phone, or type the 6-digit code from it here.',
+            'Nagpadala kami ng bagong confirmation email sa $email. Buksan ang link sa teleponong ito, o i-type dito ang 6-digit na code mula rito.'));
       });
 
   Future<void> _verify() =>
@@ -253,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             // Accounts made with an email link have no password they know, so this sits right under Sign in
             OutlinedButton(
-                onPressed: () => _switch(_Mode.link), child: Text(tr('Email me a link or code', 'Ipadala ang link o code'))),
+                onPressed: _busy ? null : () => _switch(_Mode.link), child: Text(tr('Email me a link or code', 'Ipadala ang link o code'))),
           ],
         _Mode.signUp => [
             AutofillGroup(
@@ -283,9 +290,8 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             _emailField(onSubmit: _sendLink, last: true),
             const SizedBox(height: 24),
-            _byCode
-                ? _submit(tr('Email me a code', 'Ipadala ang code'), tr('Sending…', 'Ipinapadala…'), _sendLink)
-                : _submit(tr('Email me a sign-in link', 'Ipadala ang sign-in link'), tr('Sending…', 'Ipinapadala…'), _sendLink),
+            _submit(_byCode ? tr('Email me a code', 'Ipadala ang code') : tr('Email me a sign-in link', 'Ipadala ang sign-in link'),
+                tr('Sending…', 'Ipinapadala…'), _sendLink),
           ],
       };
 

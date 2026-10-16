@@ -57,7 +57,8 @@ export function Login() {
     if (/email not confirmed/i.test(message)) return t.login.unconfirmed;
     if (/already registered|already exists/i.test(message)) return t.login.exists;
     if (/rate limit|too many/i.test(message)) return t.login.tooMany;
-    if (/token has expired|otp.*(expired|invalid)|invalid.*(token|otp)/i.test(message)) return t.login.codeWrong;
+    if (/only request this after|security purposes/i.test(message)) return t.login.waitResend;
+    if (/token has expired|otp_expired/i.test(message)) return t.login.codeWrong;
     return message;
   }
 
@@ -272,7 +273,7 @@ export function Login() {
         </form>
       ) : (
         <form onSubmit={sendLink} className="mt-6 grid gap-4">
-          <div role="radiogroup" aria-label={t.login.linkIntro} className="grid grid-cols-2 rounded-full border border-line bg-paper p-1 text-sm font-semibold">
+          <div role="radiogroup" aria-label={t.login.noPassword} className="grid grid-cols-2 rounded-full border border-line bg-paper p-1 text-sm font-semibold">
             {(["link", "code"] as const).map((v) => (
               <button key={v} type="button" role="radio" aria-checked={via === v} onClick={() => setVia(v)}
                 className={`rounded-full px-4 py-2 transition-colors ${via === v ? "bg-sea text-paper" : "text-muted hover:text-ink"}`}>
