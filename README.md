@@ -42,7 +42,7 @@ A reservation system: guests search and book rooms on the web or the mobile app,
    14. `supabase/seed.sql` (sample hotel, 12 rooms, 3 room types; edit names and prices later)
 
    Or with the [Supabase CLI](https://supabase.com/docs/guides/cli): `supabase link --project-ref <ref>` then `supabase db push`.
-3. Sign-in emails contain a link by default, and the website handles it. Supabase only lets you edit email templates after you add custom SMTP (step 5); once you do, you can add `{{ .Token }}` to the **Magic Link** template so guests also get a 6-digit code.
+3. Guests can sign in with an email link or a 6-digit code, so the **Magic Link** and **Confirm signup** templates (Authentication > Emails) must contain both `{{ .ConfirmationURL }}` and `{{ .Token }}`, with Email OTP Length set to 6. Ready-to-paste templates: `docs/sign-in-email-template.md`.
 4. **Authentication → URL Configuration**: set Site URL to your Vercel address (step 3) and add it to Redirect URLs.
 5. **Real emails:** Supabase's built-in email sender only allows a few emails an hour and is meant for testing. For a live hotel, add free SMTP from [Brevo](https://www.brevo.com) (300 emails a day) under **Authentication → SMTP Settings**.
 6. Optional: turn on **Google** under Authentication → Providers, then set `NEXT_PUBLIC_GOOGLE_LOGIN=1` in Vercel to show the "Continue with Google" button.

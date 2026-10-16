@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Notice, Spinner } from "@/components/ui";
 import { MIN_PASSWORD } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -18,6 +19,10 @@ export function SetPassword() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const router = useRouter();
+  // Set when we arrive straight after an email sign-in: where to carry on afterwards
+  const thenParam = useSearchParams().get("then");
+  const then = thenParam && thenParam.startsWith("/") && !thenParam.startsWith("//") ? thenParam : null;
 
   if (!session) return <Spinner />;
 
@@ -27,9 +32,11 @@ export function SetPassword() {
     if (password.length < MIN_PASSWORD) return setError(t.password.tooShort);
     if (password !== again) return setError(t.password.mismatch);
     setBusy(true);
-    const { error } = await supabase().auth.updateUser({ password });
+    // has_password tells the site not to offer this again after an email sign-in
+    const { error } = await supabase().auth.updateUser({ password, data: { has_password: true } });
     setBusy(false);
     if (error) return setError(error.message);
+    if (then) return router.replace(then);
     setSaved(true);
     setPassword("");
     setAgain("");
@@ -38,7 +45,7 @@ export function SetPassword() {
   return (
     <div className="card p-7">
       <h1 className="text-3xl font-semibold">{t.password.title}</h1>
-      <p className="mt-2 text-muted">{recovering ? t.password.resetIntro : t.password.intro}</p>
+      <p className="mt-2 text-muted">{recovering ? t.password.resetIntro : then ? t.password.offerIntro : t.password.intro}</p>
       <p className="mt-1 text-sm text-muted">{session.user.email}</p>
 
       {saved ? (
@@ -61,6 +68,9 @@ export function SetPassword() {
             <input id="again-password" type="password" className="field" value={again} onChange={(e) => setAgain(e.target.value)} required autoComplete="new-password" />
           </div>
           <button className="btn-primary" disabled={busy}>{busy ? t.password.saving : t.password.save}</button>
+          {then && !recovering && (
+            <Link href={then} className="justify-self-center text-sm text-muted hover:text-ink">{t.password.skip}</Link>
+          )}
         </form>
       )}
       {error && <div className="mt-4"><Notice tone="error">{error}</Notice></div>}

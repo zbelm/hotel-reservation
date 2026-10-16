@@ -53,7 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return tr('Too many emails were sent in the last hour. Please try again later, or sign in with your password.',
           'Masyadong maraming email ang naipadala ngayong oras. Subukan ulit mamaya, o mag-sign in gamit ang password.');
     }
-    if (has(r'token has expired|otp.*(expired|invalid)|invalid.*(token|otp)')) {
+    if (has('only request this after|security purposes')) {
+      return tr('Please wait a minute before asking for another email.',
+          'Maghintay muna ng isang minuto bago humingi ng panibagong email.');
+    }
+    if (has('token has expired|otp_expired')) {
       return tr('That code is wrong or has expired. Check the newest email, or send a new code.',
           'Mali o expired na ang code na iyon. Tingnan ang pinakabagong email, o magpadala ng bagong code.');
     }
@@ -103,13 +107,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() => _run((email) => db.auth.signInWithPassword(email: email, password: _password.text), needsPassword: true);
 
   Future<void> _signUp() => _run((email) async {
-        final res = await db.auth.signUp(email: email, password: _password.text, emailRedirectTo: authRedirect);
+        // They chose a password here, so no "set a password" offer after confirming
+        final res = await db.auth.signUp(
+            email: email, password: _password.text, emailRedirectTo: authRedirect, data: {'has_password': true});
         // Supabase hides existing accounts by returning a user with no identities
         if (res.user != null && (res.user!.identities?.isEmpty ?? false)) throw AuthException(_existsText);
         if (res.session == null && mounted) {
           setState(() => _sent = tr(
-              'Almost done. We sent a confirmation link to $email. Open it on this phone to finish creating your account.',
-              'Malapit na. Nagpadala kami ng confirmation link sa $email. Buksan ito sa teleponong ito para matapos ang account mo.'));
+              'Almost done. We sent a confirmation email to $email. Open the link on this phone, or type the 6-digit code from it here.',
+              'Malapit na. Nagpadala kami ng confirmation email sa $email. Buksan ang link sa teleponong ito, o i-type dito ang 6-digit na code mula rito.'));
         }
       }, newPassword: true);
 
@@ -131,6 +137,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Nagpadala kami ng 6-digit na code sa $email. I-type ito sa ibaba para mag-sign in.')
             : tr('Open the email we sent to $email on this phone and tap the sign-in link. The app opens and signs you in.',
                 'Buksan sa teleponong ito ang email na ipinadala namin sa $email at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'));
+      });
+
+  Future<void> _resendConfirmation() => _run((email) async {
+        await db.auth.resend(type: OtpType.signup, email: email, emailRedirectTo: authRedirect);
+        if (!mounted) return;
+        _code.clear();
+        setState(() => _sent = tr('We sent a new confirmation email to $email. Open the link on this phone, or type the 6-digit code from it here.',
+            'Nagpadala kami ng bagong confirmation email sa $email. Buksan ang link sa teleponong ito, o i-type dito ang 6-digit na code mula rito.'));
       });
 
   Future<void> _verify() =>
@@ -248,7 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             // Accounts made with an email link have no password they know, so this sits right under Sign in
             OutlinedButton(
-                onPressed: () => _switch(_Mode.link), child: Text(tr('Email me a link or code', 'Ipadala ang link o code'))),
+                onPressed: _busy ? null : () => _switch(_Mode.link), child: Text(tr('Email me a link or code', 'Ipadala ang link o code'))),
           ],
         _Mode.signUp => [
             AutofillGroup(
@@ -278,15 +292,19 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             _emailField(onSubmit: _sendLink, last: true),
             const SizedBox(height: 24),
-            _byCode
-                ? _submit(tr('Email me a code', 'Ipadala ang code'), tr('Sending…', 'Ipinapadala…'), _sendLink)
-                : _submit(tr('Email me a sign-in link', 'Ipadala ang sign-in link'), tr('Sending…', 'Ipinapadala…'), _sendLink),
+            _submit(_byCode ? tr('Email me a code', 'Ipadala ang code') : tr('Email me a sign-in link', 'Ipadala ang sign-in link'),
+                tr('Sending…', 'Ipinapadala…'), _sendLink),
           ],
       };
 
+  // A sign-in email or a sign-up confirmation: both carry a link and a 6-digit code
+  bool get _emailed => _mode == _Mode.link || _mode == _Mode.signUp;
+  // Only a sign-in where they picked "6-digit code" opens straight on the code box
+  bool get _codeFirst => _mode == _Mode.link && _byCode;
+
   List<Widget> _sentView(Color muted) => [
         Text(_sent!, style: TextStyle(color: tones(context).good, fontSize: 16, fontWeight: FontWeight.w600)),
-        if (_mode == _Mode.link && !_byCode && !_codeOpen)
+        if (_emailed && !_codeFirst && !_codeOpen)
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
@@ -294,7 +312,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Text(tr('Typing a code instead? Enter it here', 'Code ang gagamitin? Ilagay ito rito')),
             ),
           ),
-        if (_mode == _Mode.link && (_byCode || _codeOpen)) ...[
+        if (_emailed && (_codeFirst || _codeOpen)) ...[
           const SizedBox(height: 16),
           TextField(
             autofocus: true,
@@ -315,7 +333,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
         const SizedBox(height: 8),
         Wrap(spacing: 8, children: [
-          if (_mode == _Mode.link) TextButton(onPressed: _busy ? null : _sendLink, child: Text(tr('Send a new email', 'Magpadala ulit'))),
+          if (_emailed)
+            TextButton(
+                onPressed: _busy ? null : (_mode == _Mode.signUp ? _resendConfirmation : _sendLink),
+                child: Text(tr('Send a new email', 'Magpadala ulit'))),
           TextButton(
             onPressed: () => setState(() {
               _sent = null;

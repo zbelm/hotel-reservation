@@ -57,7 +57,8 @@ export function Login() {
     if (/email not confirmed/i.test(message)) return t.login.unconfirmed;
     if (/already registered|already exists/i.test(message)) return t.login.exists;
     if (/rate limit|too many/i.test(message)) return t.login.tooMany;
-    if (/token has expired|otp.*(expired|invalid)|invalid.*(token|otp)/i.test(message)) return t.login.codeWrong;
+    if (/only request this after|security purposes/i.test(message)) return t.login.waitResend;
+    if (/token has expired|otp_expired/i.test(message)) return t.login.codeWrong;
     return message;
   }
 
@@ -91,6 +92,11 @@ export function Login() {
     }
   }
 
+  // A sign-in email or a sign-up confirmation: both carry a link and a 6-digit code
+  const emailed = mode === "link" || mode === "signup";
+  // Only a sign-in where they picked "6-digit code" opens straight on the code box
+  const codeFirst = mode === "link" && via === "code";
+
   const redirectTo = () => `${window.location.origin}${next}`;
 
   function signIn(e: FormEvent) {
@@ -109,7 +115,8 @@ export function Login() {
       const { data, error } = await supabase().auth.signUp({
         email: address,
         password,
-        options: { emailRedirectTo: redirectTo() },
+        // They chose a password here, so no "set a password" offer after confirming
+        options: { emailRedirectTo: redirectTo(), data: { has_password: true } },
       });
       if (error) return explain(error.message);
       // Supabase hides existing accounts by returning a user with no identities
@@ -139,6 +146,16 @@ export function Login() {
       if (error) return explain(error.message);
       setCode("");
       setSent(via === "code" ? t.login.checkCode(address) : t.login.check(address));
+    });
+  }
+
+  function resendConfirmation() {
+    run(async () => {
+      const address = email.trim();
+      const { error } = await supabase().auth.resend({ type: "signup", email: address, options: { emailRedirectTo: redirectTo() } });
+      if (error) return explain(error.message);
+      setCode("");
+      setSent(t.login.confirmSent(address));
     });
   }
 
@@ -213,12 +230,12 @@ export function Login() {
       {sent ? (
         <div className="mt-6 grid gap-4">
           <Notice tone="good">{sent}</Notice>
-          {mode === "link" && via === "link" && !codeOpen && (
+          {emailed && !codeFirst && !codeOpen && (
             <button type="button" className="justify-self-start text-sm font-semibold text-sea hover:underline" onClick={() => setCodeOpen(true)}>
               {t.login.haveCode}
             </button>
           )}
-          {mode === "link" && (via === "code" || codeOpen) && (
+          {emailed && (codeFirst || codeOpen) && (
             <form onSubmit={verifyCode} className="grid gap-4">
               <div>
                 <label htmlFor="code" className="label">{t.login.code}</label>
@@ -229,8 +246,9 @@ export function Login() {
             </form>
           )}
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-            {mode === "link" && (
-              <button type="button" className="text-muted hover:text-ink disabled:opacity-60" disabled={busy} onClick={() => sendLink()}>{t.login.resend}</button>
+            {emailed && (
+              <button type="button" className="text-muted hover:text-ink disabled:opacity-60" disabled={busy}
+                onClick={() => (mode === "signup" ? resendConfirmation() : sendLink())}>{t.login.resend}</button>
             )}
             <button type="button" className="text-muted hover:text-ink" onClick={startOver}>{t.login.other}</button>
           </div>
@@ -256,7 +274,7 @@ export function Login() {
         </form>
       ) : (
         <form onSubmit={sendLink} className="mt-6 grid gap-4">
-          <div role="radiogroup" aria-label={t.login.linkIntro} className="grid grid-cols-2 rounded-full border border-line bg-paper p-1 text-sm font-semibold">
+          <div role="radiogroup" aria-label={t.login.noPassword} className="grid grid-cols-2 rounded-full border border-line bg-paper p-1 text-sm font-semibold">
             {(["link", "code"] as const).map((v) => (
               <button key={v} type="button" role="radio" aria-checked={via === v} onClick={() => setVia(v)}
                 className={`rounded-full px-4 py-2 transition-colors ${via === v ? "bg-sea text-paper" : "text-muted hover:text-ink"}`}>

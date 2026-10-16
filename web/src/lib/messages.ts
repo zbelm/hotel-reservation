@@ -202,7 +202,7 @@ const en = {
     forgotIntro: "Enter your email and we'll send you a link to choose a new password.",
     sendReset: "Send reset link",
     resetSent: (email: string) => `If ${email} has an account, a reset link is on its way. Open it on this device to choose a new password.`,
-    confirmSent: (email: string) => `Almost done. We sent a confirmation link to ${email}. Open it on this device to finish creating your account.`,
+    confirmSent: (email: string) => `Almost done. We sent a confirmation email to ${email}. Open the link on this device, or type the 6-digit code from it here.`,
     exists: "An account with this email already exists. Sign in instead, or reset your password.",
     tooShort: `Use at least ${MIN_PASSWORD} characters.`,
     useLink: "Sign in with an email link or code instead",
@@ -218,6 +218,7 @@ const en = {
     haveCode: "Typing a code instead? Enter it here",
     codeWrong: "That code is wrong or has expired. Check the newest email, or send a new code.",
     resend: "Send a new email",
+    waitResend: "Please wait a minute before asking for another email.",
     code: "6-digit code",
     other: "Use a different email",
     backToSignIn: "Back to sign in",
@@ -244,6 +245,8 @@ const en = {
     promptTitle: "Sign in faster next time",
     prompt: "Set a password so you don't have to wait for a sign-in email.",
     promptLink: "Set a password",
+    offerIntro: "You're signed in. Choose a password now, and next time you just type it: no email to wait for.",
+    skip: "Skip for now",
   },
 
   stays: {
@@ -587,7 +590,7 @@ const fil: Messages = {
     forgotIntro: "Ilagay ang email mo at magpapadala kami ng link para pumili ng bagong password.",
     sendReset: "Ipadala ang reset link",
     resetSent: (email) => `Kung may account ang ${email}, papunta na ang reset link. Buksan ito sa device na ito para pumili ng bagong password.`,
-    confirmSent: (email) => `Malapit na. Nagpadala kami ng confirmation link sa ${email}. Buksan ito sa device na ito para matapos ang account mo.`,
+    confirmSent: (email) => `Malapit na. Nagpadala kami ng confirmation email sa ${email}. Buksan ang link sa device na ito, o i-type dito ang 6-digit na code mula rito.`,
     exists: "May account na ang email na ito. Mag-sign in na lang, o i-reset ang password.",
     tooShort: `Gumamit ng hindi bababa sa ${MIN_PASSWORD} character.`,
     useLink: "Mag-sign in na lang gamit ang email link o code",
@@ -603,6 +606,7 @@ const fil: Messages = {
     haveCode: "Code ang gagamitin? Ilagay ito rito",
     codeWrong: "Mali o expired na ang code na iyon. Tingnan ang pinakabagong email, o magpadala ng bagong code.",
     resend: "Magpadala ulit",
+    waitResend: "Maghintay muna ng isang minuto bago humingi ng panibagong email.",
     code: "6-digit na code",
     other: "Gumamit ng ibang email",
     backToSignIn: "Bumalik sa sign in",
@@ -629,6 +633,8 @@ const fil: Messages = {
     promptTitle: "Mas mabilis na sign-in sa susunod",
     prompt: "Maglagay ng password para hindi mo na kailangang maghintay ng sign-in email.",
     promptLink: "Maglagay ng password",
+    offerIntro: "Naka-sign in ka na. Pumili ng password ngayon, at sa susunod ita-type mo na lang ito: walang email na hihintayin.",
+    skip: "Mamaya na lang",
   },
 
   stays: {

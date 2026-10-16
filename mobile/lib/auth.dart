@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -36,6 +37,7 @@ final appMessenger = GlobalKey<ScaffoldMessengerState>();
 final _linkError = RegExp(r'otp_expired|access_denied|flow_state|code verifier|expired|invalid.*(link|token)', caseSensitive: false);
 
 bool _resetOpen = false;
+bool _passwordOffered = false;
 StreamSubscription<AuthState>? _authLinks;
 
 /// Reacts to email links once for the whole app: a password-reset link opens the
@@ -45,6 +47,7 @@ void listenForAuthLinks() {
   _authLinks ??= Supabase.instance.client.auth.onAuthStateChange.listen(
     (state) {
       if (state.event == AuthChangeEvent.passwordRecovery) _openReset();
+      if (state.event == AuthChangeEvent.signedIn && state.session != null && needsPassword(state.session!)) _offerPassword();
     },
     onError: (Object e) {
       // Only email-link problems get a message; session refresh errors (offline, etc.) retry on their own
@@ -56,6 +59,32 @@ void listenForAuthLinks() {
       ));
     },
   );
+}
+
+/// True when this session came from an email link or code and the account has never saved a
+/// password, so the guest would need another email to sign in next time.
+bool needsPassword(Session session) {
+  if (session.user.userMetadata?['has_password'] == true) return false;
+  try {
+    final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(session.accessToken.split('.')[1]))));
+    final amr = (payload['amr'] as List?) ?? const [];
+    return amr.any((a) => const ['otp', 'magiclink', 'email/signup', 'invite'].contains((a as Map)['method']));
+  } catch (_) {
+    return false;
+  }
+}
+
+// Signed in from an email with no password yet: offer one right away, once per app run,
+// so the next sign-in is just email and password instead of another email
+void _offerPassword() {
+  if (_passwordOffered || _resetOpen) return;
+  final nav = appNavigator.currentState;
+  if (nav == null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerPassword());
+    return;
+  }
+  _passwordOffered = true;
+  nav.push(MaterialPageRoute(builder: (_) => const PasswordScreen(offer: true)));
 }
 
 void _openReset() {
