@@ -82,7 +82,12 @@ Deno.serve(async (req) => {
   try {
     payload = new Webhook(HOOK_SECRET).verify(body, Object.fromEntries(req.headers)) as HookPayload;
   } catch (e) {
-    console.error("Hook signature check failed:", (e as Error).message);
+    // Describes the saved secret's shape (never its value) to help fix a bad paste
+    console.error("Hook signature check failed:", (e as Error).message, JSON.stringify({
+      hasPrefix: rawSecret.includes("whsec_"),
+      length: HOOK_SECRET.length,
+      badChars: HOOK_SECRET.replace(/[A-Za-z0-9+/=]/g, "").length,
+    }));
     return fail(401, "Invalid hook signature");
   }
 
