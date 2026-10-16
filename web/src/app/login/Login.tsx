@@ -91,6 +91,11 @@ export function Login() {
     }
   }
 
+  // A sign-in email or a sign-up confirmation: both carry a link and a 6-digit code
+  const emailed = mode === "link" || mode === "signup";
+  // Only a sign-in where they picked "6-digit code" opens straight on the code box
+  const codeFirst = mode === "link" && via === "code";
+
   const redirectTo = () => `${window.location.origin}${next}`;
 
   function signIn(e: FormEvent) {
@@ -139,6 +144,16 @@ export function Login() {
       if (error) return explain(error.message);
       setCode("");
       setSent(via === "code" ? t.login.checkCode(address) : t.login.check(address));
+    });
+  }
+
+  function resendConfirmation() {
+    run(async () => {
+      const address = email.trim();
+      const { error } = await supabase().auth.resend({ type: "signup", email: address, options: { emailRedirectTo: redirectTo() } });
+      if (error) return explain(error.message);
+      setCode("");
+      setSent(t.login.confirmSent(address));
     });
   }
 
@@ -213,12 +228,12 @@ export function Login() {
       {sent ? (
         <div className="mt-6 grid gap-4">
           <Notice tone="good">{sent}</Notice>
-          {mode === "link" && via === "link" && !codeOpen && (
+          {emailed && !codeFirst && !codeOpen && (
             <button type="button" className="justify-self-start text-sm font-semibold text-sea hover:underline" onClick={() => setCodeOpen(true)}>
               {t.login.haveCode}
             </button>
           )}
-          {mode === "link" && (via === "code" || codeOpen) && (
+          {emailed && (codeFirst || codeOpen) && (
             <form onSubmit={verifyCode} className="grid gap-4">
               <div>
                 <label htmlFor="code" className="label">{t.login.code}</label>
@@ -229,8 +244,9 @@ export function Login() {
             </form>
           )}
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-            {mode === "link" && (
-              <button type="button" className="text-muted hover:text-ink disabled:opacity-60" disabled={busy} onClick={() => sendLink()}>{t.login.resend}</button>
+            {emailed && (
+              <button type="button" className="text-muted hover:text-ink disabled:opacity-60" disabled={busy}
+                onClick={() => (mode === "signup" ? resendConfirmation() : sendLink())}>{t.login.resend}</button>
             )}
             <button type="button" className="text-muted hover:text-ink" onClick={startOver}>{t.login.other}</button>
           </div>

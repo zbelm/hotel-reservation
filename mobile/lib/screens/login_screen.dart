@@ -108,8 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (res.user != null && (res.user!.identities?.isEmpty ?? false)) throw AuthException(_existsText);
         if (res.session == null && mounted) {
           setState(() => _sent = tr(
-              'Almost done. We sent a confirmation link to $email. Open it on this phone to finish creating your account.',
-              'Malapit na. Nagpadala kami ng confirmation link sa $email. Buksan ito sa teleponong ito para matapos ang account mo.'));
+              'Almost done. We sent a confirmation email to $email. Open the link on this phone, or type the 6-digit code from it here.',
+              'Malapit na. Nagpadala kami ng confirmation email sa $email. Buksan ang link sa teleponong ito, o i-type dito ang 6-digit na code mula rito.'));
         }
       }, newPassword: true);
 
@@ -131,6 +131,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Nagpadala kami ng 6-digit na code sa $email. I-type ito sa ibaba para mag-sign in.')
             : tr('Open the email we sent to $email on this phone and tap the sign-in link. The app opens and signs you in.',
                 'Buksan sa teleponong ito ang email na ipinadala namin sa $email at pindutin ang sign-in link. Magbubukas ang app at masa-sign in ka.'));
+      });
+
+  Future<void> _resendConfirmation() => _run((email) async {
+        await db.auth.resend(type: OtpType.signup, email: email, emailRedirectTo: authRedirect);
+        if (mounted) _code.clear();
       });
 
   Future<void> _verify() =>
@@ -284,9 +289,14 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
       };
 
+  // A sign-in email or a sign-up confirmation: both carry a link and a 6-digit code
+  bool get _emailed => _mode == _Mode.link || _mode == _Mode.signUp;
+  // Only a sign-in where they picked "6-digit code" opens straight on the code box
+  bool get _codeFirst => _mode == _Mode.link && _byCode;
+
   List<Widget> _sentView(Color muted) => [
         Text(_sent!, style: TextStyle(color: tones(context).good, fontSize: 16, fontWeight: FontWeight.w600)),
-        if (_mode == _Mode.link && !_byCode && !_codeOpen)
+        if (_emailed && !_codeFirst && !_codeOpen)
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
@@ -294,7 +304,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Text(tr('Typing a code instead? Enter it here', 'Code ang gagamitin? Ilagay ito rito')),
             ),
           ),
-        if (_mode == _Mode.link && (_byCode || _codeOpen)) ...[
+        if (_emailed && (_codeFirst || _codeOpen)) ...[
           const SizedBox(height: 16),
           TextField(
             autofocus: true,
@@ -315,7 +325,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
         const SizedBox(height: 8),
         Wrap(spacing: 8, children: [
-          if (_mode == _Mode.link) TextButton(onPressed: _busy ? null : _sendLink, child: Text(tr('Send a new email', 'Magpadala ulit'))),
+          if (_emailed)
+            TextButton(
+                onPressed: _busy ? null : (_mode == _Mode.signUp ? _resendConfirmation : _sendLink),
+                child: Text(tr('Send a new email', 'Magpadala ulit'))),
           TextButton(
             onPressed: () => setState(() {
               _sent = null;
