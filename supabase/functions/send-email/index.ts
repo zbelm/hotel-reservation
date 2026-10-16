@@ -13,11 +13,15 @@
 
 import { Webhook } from "npm:standardwebhooks@1.0.0";
 
-const SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID") ?? "service_520iltn";
+const SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID") ?? "service_xxg44kn";
 const TEMPLATE_ID = Deno.env.get("EMAILJS_TEMPLATE_ID") ?? "template_37ruhko";
 const PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY") ?? "sq1Z56zVbrX-BeM8g";
 const PRIVATE_KEY = Deno.env.get("EMAILJS_PRIVATE_KEY");
-const HOOK_SECRET = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "").replace("v1,whsec_", "");
+// Keeps only the base64 part, so a value pasted with spaces, quotes, line breaks or
+// the "v1,whsec_" prefix still works
+const rawSecret = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "").replace(/\s+/g, "");
+const HOOK_SECRET = (rawSecret.match(/whsec_([A-Za-z0-9+/=]+)/)?.[1] ?? rawSecret)
+  .replace(/^["']|["']$/g, "");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 // Matches Authentication → Providers → Email → Email OTP Expiration
 const VALID_MINUTES = Number(Deno.env.get("OTP_VALID_MINUTES") ?? "60");
@@ -77,7 +81,13 @@ Deno.serve(async (req) => {
   let payload: HookPayload;
   try {
     payload = new Webhook(HOOK_SECRET).verify(body, Object.fromEntries(req.headers)) as HookPayload;
-  } catch {
+  } catch (e) {
+    // Describes the saved secret's shape (never its value) to help fix a bad paste
+    console.error("Hook signature check failed:", (e as Error).message, JSON.stringify({
+      hasPrefix: rawSecret.includes("whsec_"),
+      length: HOOK_SECRET.length,
+      badChars: HOOK_SECRET.replace(/[A-Za-z0-9+/=]/g, "").length,
+    }));
     return fail(401, "Invalid hook signature");
   }
 
