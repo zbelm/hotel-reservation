@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../auth.dart';
 import '../format.dart';
 import '../i18n.dart';
 import '../theme.dart';
@@ -17,6 +18,18 @@ class BookingsScreen extends StatefulWidget {
 
 class _BookingsScreenState extends State<BookingsScreen> {
   late Future<List<Map<String, dynamic>>> _bookings = _load();
+  bool _hasPassword = true; // hides the set-a-password card until we know
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPassword();
+  }
+
+  Future<void> _checkPassword() async {
+    final has = await accountHasPassword();
+    if (mounted) setState(() => _hasPassword = has);
+  }
 
   Future<List<Map<String, dynamic>>> _load() async {
     final uid = db.auth.currentUser!.id;
@@ -87,7 +100,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   for (final b in past) ...[_stayCard(context, b), const SizedBox(height: 12)],
                 ],
                 const SizedBox(height: 8),
-                _passwordCard(context),
+                if (!_hasPassword) _passwordCard(context),
               ],
             );
           },
@@ -132,7 +145,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PasswordScreen())),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PasswordScreen())).then((_) => _checkPassword()),
               child: Text(tr('Set a password', 'Maglagay ng password')),
             ),
           ]),

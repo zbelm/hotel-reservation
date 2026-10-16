@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
-import { needsPassword, readLinkError } from "@/lib/auth";
+import { passwordOffer, readLinkError } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -68,18 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(async () => {
         if (event === "SIGNED_IN" && s) await supabase().rpc("claim_staff_invite");
         loadProfile(s);
-        // Signed in from an email with no password yet: offer one right away, once per session,
-        // so the next sign-in is just email and password instead of another email
-        if (event === "SIGNED_IN" && s && needsPassword(s) && window.location.pathname !== "/password") {
-          const key = `pw-offered:${s.user.id}`;
-          try {
-            if (sessionStorage.getItem(key)) return;
-            sessionStorage.setItem(key, "1");
-          } catch {}
-          const back = window.location.pathname === "/login"
-            ? new URLSearchParams(window.location.search).get("next") ?? "/bookings"
-            : window.location.pathname + window.location.search;
-          router.replace(`/password?then=${encodeURIComponent(back)}`);
+        // Signed in from an email with no password yet: offer one right away, so the next
+        // sign-in is just email and password. The sign-in page does this itself after it
+        // navigates, so skip it there to avoid two competing redirects.
+        const path = window.location.pathname;
+        if (event === "SIGNED_IN" && s && path !== "/login" && path !== "/password") {
+          const offer = await passwordOffer(s, path + window.location.search);
+          if (offer) router.replace(offer);
         }
       }, 0);
     });

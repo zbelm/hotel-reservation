@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,7 +36,8 @@ final appMessenger = GlobalKey<ScaffoldMessengerState>();
 final _linkError = RegExp(r'otp_expired|access_denied|flow_state|code verifier|expired|invalid.*(link|token)', caseSensitive: false);
 
 bool _resetOpen = false;
-bool _passwordOffered = false;
+/// The sign-in (user id and time) the password offer was last shown for
+String? _offeredFor;
 StreamSubscription<AuthState>? _authLinks;
 
 /// Reacts to email links once for the whole app: a password-reset link opens the
@@ -47,7 +47,8 @@ void listenForAuthLinks() {
   _authLinks ??= Supabase.instance.client.auth.onAuthStateChange.listen(
     (state) {
       if (state.event == AuthChangeEvent.passwordRecovery) _openReset();
-      if (state.event == AuthChangeEvent.signedIn && state.session != null && needsPassword(state.session!)) _offerPassword();
+      if (state.event == AuthChangeEvent.signedIn && state.session != null) _maybeOfferPassword(state.session!);
+      if (state.event == AuthChangeEvent.signedOut) _offeredFor = null;
     },
     onError: (Object e) {
       // Only email-link problems get a message; session refresh errors (offline, etc.) retry on their own
@@ -61,29 +62,46 @@ void listenForAuthLinks() {
   );
 }
 
-/// True when this session came from an email link or code and the account has never saved a
-/// password, so the guest would need another email to sign in next time.
-bool needsPassword(Session session) {
-  if (session.user.userMetadata?['has_password'] == true) return false;
+const _emailMethods = {AMRMethod.otp, AMRMethod.magiclink, AMRMethod.emailSignUp, AMRMethod.invite};
+
+/// Whether the signed-in account has a password saved. Accounts from before the has_password
+/// flag existed may have one without the flag, so this asks the database when the flag is missing.
+Future<bool> accountHasPassword() async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) return false;
+  if (user.userMetadata?['has_password'] == true) return true;
   try {
-    final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(session.accessToken.split('.')[1]))));
-    final amr = (payload['amr'] as List?) ?? const [];
-    return amr.any((a) => const ['otp', 'magiclink', 'email/signup', 'invite'].contains((a as Map)['method']));
+    return await Supabase.instance.client.rpc('account_has_password') == true;
   } catch (_) {
     return false;
   }
 }
 
-// Signed in from an email with no password yet: offer one right away, once per app run,
-// so the next sign-in is just email and password instead of another email
+// Signed in from an email with no password yet: offer one right away, so the next sign-in is
+// just email and password instead of another email. Only a sign-in from the last two minutes
+// counts, so a session restored when the app reopens doesn't bring the offer back.
+Future<void> _maybeOfferPassword(Session session) async {
+  final auth = Supabase.instance.client.auth;
+  final signIn = auth.mfa
+      .getAuthenticatorAssuranceLevel()
+      .currentAuthenticationMethods
+      .where((a) => _emailMethods.contains(a.method) && DateTime.now().difference(a.timestamp).inSeconds < 120)
+      .firstOrNull;
+  if (signIn == null) return;
+  final key = '${session.user.id}:${signIn.timestamp.millisecondsSinceEpoch}';
+  if (_offeredFor == key) return;
+  _offeredFor = key;
+  if (await accountHasPassword()) return;
+  _offerPassword();
+}
+
 void _offerPassword() {
-  if (_passwordOffered || _resetOpen) return;
+  if (_resetOpen) return;
   final nav = appNavigator.currentState;
   if (nav == null) {
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerPassword());
     return;
   }
-  _passwordOffered = true;
   nav.push(MaterialPageRoute(builder: (_) => const PasswordScreen(offer: true)));
 }
 

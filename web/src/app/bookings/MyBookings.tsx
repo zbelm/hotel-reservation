@@ -15,6 +15,13 @@ export function MyBookings() {
   const { session } = useRequireAuth();
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [error, setError] = useState("");
+  // Accounts from before has_password existed may still have a password saved
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!session || session.user.user_metadata?.has_password) return;
+    supabase().rpc("account_has_password").then(({ data }) => setHasPassword(data === true));
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -48,7 +55,7 @@ export function MyBookings() {
       )}
       {upcoming.length > 0 && <BookingList title={t.stays.upcoming} items={upcoming} />}
       {past.length > 0 && <BookingList title={t.stays.past} items={past} />}
-      {!session?.user.user_metadata?.has_password && (
+      {!session?.user.user_metadata?.has_password && hasPassword === false && (
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-paper px-5 py-4">
         <div>
           <p className="font-semibold">{t.password.promptTitle}</p>

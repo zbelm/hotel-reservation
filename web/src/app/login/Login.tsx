@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { Notice } from "@/components/ui";
-import { MIN_PASSWORD } from "@/lib/auth";
+import { MIN_PASSWORD, passwordOffer, safeNext } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/i18n";
 
@@ -16,16 +16,6 @@ type Mode = "signin" | "signup" | "forgot" | "link";
 type Via = "link" | "code";
 
 // Only ever return to a page on this site (blocks tricks like "//evil.com" or "/\\evil.com")
-function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/bookings";
-  try {
-    const url = new URL(value, "https://hotel.local");
-    return url.origin === "https://hotel.local" ? url.pathname + url.search + url.hash : "/bookings";
-  } catch {
-    return "/bookings";
-  }
-}
-
 export function Login() {
   const { t } = useT();
   const params = useSearchParams();
@@ -48,8 +38,12 @@ export function Login() {
 
   // Signed in (here, or from an email link): go where they were headed. This is the one
   // place that navigates after sign-in, so the handlers below only report errors.
+  // Straight after an email sign-in with no password yet, the password offer comes first.
   useEffect(() => {
-    if (session) router.replace(next);
+    if (!session) return;
+    let live = true;
+    passwordOffer(session, next).then((offer) => live && router.replace(offer ?? next));
+    return () => { live = false; };
   }, [session, next, router]);
 
   function explain(message: string) {
@@ -259,7 +253,7 @@ export function Login() {
           {passwordField(false)}
           <button className="btn-primary" disabled={busy}>{busy ? t.login.checking : t.login.signIn}</button>
           {/* Accounts made with an email link have no password they know, so this sits right under Sign in */}
-          <button type="button" className="btn-quiet" onClick={() => switchTo("link")}>{t.login.noPassword}</button>
+          <button type="button" className="btn-quiet" disabled={busy} onClick={() => switchTo("link")}>{t.login.noPassword}</button>
         </form>
       ) : mode === "signup" ? (
         <form onSubmit={signUp} className="mt-6 grid gap-4">

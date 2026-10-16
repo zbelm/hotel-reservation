@@ -12,6 +12,7 @@ create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
   raw_user_meta_data jsonb not null default '{}',
+  encrypted_password text,
   last_sign_in_at timestamptz,
   email_confirmed_at timestamptz default now(),
   created_at timestamptz not null default now()
