@@ -13,7 +13,7 @@
 
 import { Webhook } from "npm:standardwebhooks@1.0.0";
 
-const SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID") ?? "service_520iltn";
+const SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID") ?? "service_80l4drc";
 const TEMPLATE_ID = Deno.env.get("EMAILJS_TEMPLATE_ID") ?? "template_37ruhko";
 const PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY") ?? "sq1Z56zVbrX-BeM8g";
 const PRIVATE_KEY = Deno.env.get("EMAILJS_PRIVATE_KEY");
