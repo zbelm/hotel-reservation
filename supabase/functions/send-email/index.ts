@@ -17,9 +17,11 @@ const SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID") ?? "service_520iltn";
 const TEMPLATE_ID = Deno.env.get("EMAILJS_TEMPLATE_ID") ?? "template_37ruhko";
 const PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY") ?? "sq1Z56zVbrX-BeM8g";
 const PRIVATE_KEY = Deno.env.get("EMAILJS_PRIVATE_KEY");
-// Tolerates the value being pasted with spaces, quotes or the "v1,whsec_" prefix
-const HOOK_SECRET = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "")
-  .trim().replace(/^["']|["']$/g, "").replace(/^v1,/, "").replace(/^whsec_/, "");
+// Keeps only the base64 part, so a value pasted with spaces, quotes, line breaks or
+// the "v1,whsec_" prefix still works
+const rawSecret = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "").replace(/\s+/g, "");
+const HOOK_SECRET = (rawSecret.match(/whsec_([A-Za-z0-9+/=]+)/)?.[1] ?? rawSecret)
+  .replace(/^["']|["']$/g, "");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 // Matches Authentication → Providers → Email → Email OTP Expiration
 const VALID_MINUTES = Number(Deno.env.get("OTP_VALID_MINUTES") ?? "60");
