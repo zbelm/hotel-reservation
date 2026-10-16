@@ -77,6 +77,9 @@ export type Booking = {
   arrival_time: string | null;
   policies_accepted_at: string | null;
   payment_option?: "online" | "pay_at_hotel" | "front_desk";
+  room_id?: string | null;     // the room assigned to a confirmed booking
+  arrived_at?: string | null;  // set when staff confirm the guest arrived
+  room?: { number: string } | null; // only with STAFF_BOOKING_SELECT
   created_at: string;
   booking_rooms?: {
     id: string;
@@ -100,6 +103,28 @@ export type Room = {
 
 export const BOOKING_SELECT =
   "*, booking_rooms(id, room_type_id, nightly_prices, room_types(name), rate_plans(name, refundable, free_cancel_hours, includes_breakfast))";
+
+// Staff views also need the assigned room (the hint names the foreign key, since
+// housekeeping_tasks links bookings and rooms too)
+export const STAFF_BOOKING_SELECT = `${BOOKING_SELECT}, room:rooms!bookings_room_id_fkey(number)`;
+
+// What the Rooms board shows for each room right now (staff_room_board)
+export type Occupancy = "occupied" | "leaving_soon" | "not_arrived" | "empty" | "out_of_order";
+
+export type BoardRoom = {
+  room_id: string;
+  number: string;
+  floor: number | null;
+  room_type_id: string;
+  room_type: string;
+  room_status: RoomStatus;
+  occupancy: Occupancy;
+  booking_id: string | null;
+  guest_name: string | null;
+  check_in: string | null;
+  check_out: string | null;
+  arrived_at: string | null;
+};
 
 export type Review = {
   id: string;

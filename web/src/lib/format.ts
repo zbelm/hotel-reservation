@@ -1,4 +1,4 @@
-import type { BookingStatus, RoomStatus } from "./types";
+import type { BookingStatus, Occupancy, RoomStatus } from "./types";
 
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
 const pesoExact = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
@@ -55,8 +55,16 @@ export const bookingStatusLabel: Record<BookingStatus, string> = {
 
 export const roomStatusLabel: Record<RoomStatus, string> = {
   vacant_clean: "Clean",
-  dirty: "Dirty",
+  dirty: "Needs cleaning",
   cleaning: "Cleaning",
+  out_of_order: "Out of order",
+};
+
+export const occupancyLabel: Record<Occupancy, string> = {
+  occupied: "Occupied",
+  leaving_soon: "Leaving soon",
+  not_arrived: "Vacant – not arrived yet",
+  empty: "Empty",
   out_of_order: "Out of order",
 };
 
